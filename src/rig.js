@@ -315,8 +315,8 @@ export async function buildRig(renderer) {
     tex.anisotropy = 8;
     const mat = new THREE.MeshStandardMaterial({map: tex, roughness: 0.4, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1});
     const SPOTS = [
-      {x: -1.3, y: 1.25, z: 0.6447, s: 1},
-      {x: -1.42, y: 1.25, z: -0.6446, s: -1},
+      {x: -1.44, y: 1.13, z: 0.6447, s: 1},
+      {x: -1.36, y: 1.13, z: -0.6446, s: -1},
     ];
     for (const p of SPOTS) {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.22), mat);
