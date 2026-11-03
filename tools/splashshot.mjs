@@ -1,0 +1,12 @@
+import {createRequire} from 'node:module';
+const req = createRequire('C:/Users/marcus.leite/.claude/skills/teardown/node_modules/x.js');
+const {chromium} = req('playwright');
+const b = await chromium.launch({args: ['--use-angle=d3d11']});
+const p = await b.newPage({viewport: {width: 1280, height: 720}});
+await p.goto(process.argv[2], {waitUntil: 'commit'});
+await p.waitForSelector('#splash', {timeout: 30000});
+await p.screenshot({path: 'teardown-out/splash.png'});
+const t0 = Date.now();
+await p.waitForFunction(() => window.SIM_SHOWN, null, {timeout: 120000});
+console.log('a cena apareceu', ((Date.now() - t0) / 1000).toFixed(1), 's depois da tela de abertura');
+await b.close();

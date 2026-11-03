@@ -41,10 +41,14 @@ export async function runLive() {
   const style = document.createElement('style');
   style.textContent = CSS;
   document.head.appendChild(style);
-  const boot = document.createElement('div');
-  boot.className = 'boot';
-  boot.textContent = 'CARREGANDO A TORRE XPTO…';
-  document.body.appendChild(boot);
+  // a tela de abertura vem pronta no HTML publicado (tools/site.mjs); sem ela, uma simples
+  let boot = document.getElementById('splash');
+  if (!boot) {
+    boot = document.createElement('div');
+    boot.className = 'boot';
+    boot.textContent = 'CARREGANDO A TORRE XPTO…';
+    document.body.appendChild(boot);
+  }
   const app = document.getElementById('app');
   const canvas = document.createElement('canvas');
   canvas.id = 'gl';
@@ -329,7 +333,9 @@ export async function runLive() {
     }
     if (!window.SIM_SHOWN) {
       window.SIM_SHOWN = true;
-      boot.remove();
+      boot.style.transition = 'opacity .6s';
+      boot.style.opacity = '0';
+      setTimeout(() => boot.remove(), 700);
       dispatchEvent(new Event('simframe'));
     }
     requestAnimationFrame(frame);

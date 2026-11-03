@@ -40,6 +40,6 @@ autonomia pelo que está ligado. Especificações representativas, não de um pr
 Feito com a skill *teardown* (three.js + esbuild):
 
 ```
-node <teardown>/sims/build.mjs ./live    # → teardown-out/dist/live.html → copiar para public/index.html
+node <teardown>/sims/build.mjs ./live    # depois: node tools/site.mjs (gera public/index.html com capa, ícone e abertura)
 node <teardown>/sims/build.mjs ./film    # filme; capture.mjs grava o vídeo
 ```
