@@ -1,0 +1,6 @@
+node_modules/
+teardown-out/
+probe/
+probe2/
+tools/tmp/
+carro2.glb
