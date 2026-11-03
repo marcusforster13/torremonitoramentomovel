@@ -87,7 +87,7 @@ export const VIEW_FN = {
   cabeca: (u) => ({tx: 0, ty: 0.05, tz: 0.05, az: -22 + 2 * u, el: 12, d: 6.0, sx: 10, sy: -24, head: 1}),
   ptz: (u) => ({tx: 0.1, ty: -0.12, tz: 0.05, az: 16 + 1.2 * u, el: 5, d: 5.2, sx: 10, sy: -24, head: 1}),
   // atrás e acima da torre, olhando a faixa por onde o carro chega: a torre, a zona de leitura e o carro no mesmo quadro
-  lpr: (u) => ({tx: -6, ty: 1.2, tz: 4.6, az: 124 - 0.6 * u, el: 19, d: 16, sx: 10, sy: -20, head: 0}),
+  lpr: (u) => ({tx: -5.5, ty: 2.0, tz: 4.2, az: 124 - 0.6 * u, el: 18, d: 20, sx: 10, sy: -20, head: 0}),
   lpr2: (u) => ({tx: 5.0, ty: 1.4, tz: 6.0, az: 236 - 0.6 * u, el: 30, d: 18, sx: 10, sy: -20, head: 0}),
   planta: (u) => ({tx: -1.0, ty: 0, tz: 2.6, az: 2 * u, el: 80, d: 20, sx: 10, sy: -16, head: 0}),
 };

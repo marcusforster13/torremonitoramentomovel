@@ -4,6 +4,7 @@
 // com o ponteiro do operador; um clique, arraste, roda ou tecla devolve o controle, 25 s sem mexer retoma o passeio.
 import {warmComposer} from 'teardown-kit/warm.js';
 import {createConsole, DISPLAY, FEED, SEQS, VIEWS} from './console.js';
+import {createMobileConsole} from './consoleMobile.js';
 import {absView, BLEND, camAt, displayAt, DURATION, isNear, lprShown, makeConsoleFrame, makeCursor, mechAt, seqAt, ss, viewAt, VIEW_FN} from './film.js';
 import {SEQ} from './kin.js';
 import {createXptoStage} from './stage.js';
@@ -53,10 +54,13 @@ export async function runLive() {
   const canvas = document.createElement('canvas');
   canvas.id = 'gl';
   app.appendChild(canvas);
+  // celular (tela estreita, ou de toque e baixa): o console em abas embaixo da cena; computador: o console 1600 x 900
+  // pelo tamanho da tela do aparelho (não muda com o zoom do navegador): o lado menor abaixo de 600 px é celular
+  const mobile = Math.min(screen.width, screen.height) < 600 || innerWidth <= 820;
   await document.fonts.ready;
   const st = await createXptoStage({canvas});
-  const ui = createConsole(app);
-  const tourCursor = makeCursor(ui);
+  const ui = mobile ? createMobileConsole(app, canvas) : createConsole(app);
+  const tourCursor = mobile ? () => ({x: -99, y: -99, press: false, ring: 0, ringX: 0, ringY: 0}) : makeCursor(ui);
   const frameConsole = makeConsoleFrame(ui, st);
 
   // ------------------------------------------------------------ níveis de qualidade
@@ -68,7 +72,20 @@ export async function runLive() {
   const light = matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, innerHeight) < 700;
   let tier = light ? 2 : 0;
   let scale = 1;
+  // no celular: a cena tem a largura da tela; a faixa das imagens ao vivo embaixo dela empurra a torre para cima, e
+  // em tela vertical a câmera recua um pouco para a torre caber
+  const mob = {strip: 0, k: 1};
   const fit = () => {
+    if (mobile) {
+      const {W: w, H: h, strip} = ui.layout();
+      // em pé a faixa das telinhas fica embaixo da cena e a torre sobe metade dela; deitado as telinhas ficam nos
+      // cantos e a cena é baixa, então a câmera recua para a torre caber inteira
+      const land = innerWidth > innerHeight;
+      mob.strip = land ? strip * 0.2 : strip;
+      mob.k = land ? 1.3 : clamp(Math.pow(1.78 / (w / (h - strip)), 0.3), 1, 1.5);
+      st.resize(w, h, clamp(devicePixelRatio || 1, 0.75, TIERS[tier].pr));
+      return;
+    }
     scale = Math.min(innerWidth / W, innerHeight / H);
     app.style.transform = `translate(${(innerWidth - W * scale) / 2}px, ${(innerHeight - H * scale) / 2}px) scale(${scale})`;
     st.resize(W, H, clamp((devicePixelRatio || 1) * scale, 0.75, TIERS[tier].pr));
@@ -86,13 +103,11 @@ export async function runLive() {
     const r = app.getBoundingClientRect();
     return [(cx - r.left) / scale, (cy - r.top) / scale];
   };
-  const tourChip = document.createElement('div');
-  tourChip.className = 'tourchip';
-  ui.root.appendChild(tourChip);
-  const note = document.createElement('div');
-  note.className = 'turn';
-  note.textContent = 'Gire o celular para ver o console inteiro';
-  document.body.appendChild(note);
+  const tourChip = mobile ? ui.chip : document.createElement('div');
+  if (!mobile) {
+    tourChip.className = 'tourchip';
+    ui.root.appendChild(tourChip);
+  }
 
   // ------------------------------------------------------------ estado
   let T = 0;
@@ -139,7 +154,8 @@ export async function runLive() {
     if (AP.on) takeOver();
     else startTour();
   });
-  addEventListener('pointerdown', (e) => {
+  // no celular, rolar a página não assume o controle: só tocar na cena ou num botão
+  (mobile ? canvas : window).addEventListener('pointerdown', (e) => {
     if (e.target !== tourChip) takeOver();
   });
   const syncDisplay = (cyc) => {
@@ -207,11 +223,19 @@ export async function runLive() {
     });
     ui.root.appendChild(d);
   };
-  slider(ui.TL.x, ui.TL.w, 821, (k) => {
-    tau = k * SEQ[seq].dur;
-    paused = true;
-  });
-  slider(ui.SP.x, ui.SP.w, 824, (k) => (speed = SPEED[0] + k * (SPEED[1] - SPEED[0])));
+  if (mobile)
+    ui.onSeek((k) => {
+      takeOver();
+      tau = k * SEQ[seq].dur;
+      paused = true;
+    });
+  else {
+    slider(ui.TL.x, ui.TL.w, 821, (k) => {
+      tau = k * SEQ[seq].dur;
+      paused = true;
+    });
+    slider(ui.SP.x, ui.SP.w, 824, (k) => (speed = SPEED[0] + k * (SPEED[1] - SPEED[0])));
+  }
   addEventListener('keydown', (e) => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     const key = e.key.toLowerCase();
@@ -230,19 +254,38 @@ export async function runLive() {
     e.preventDefault();
   });
   let drag = null;
+  // pinça: com dois dedos na cena, a distância entre eles dá o zoom
+  const touches = new Map();
+  let pinch = null;
   canvas.addEventListener('pointerdown', (e) => {
+    touches.set(e.pointerId, [e.clientX, e.clientY]);
+    if (touches.size === 2) {
+      const [a, b] = [...touches.values()];
+      pinch = {d: Math.hypot(a[0] - b[0], a[1] - b[1]), k: off.k};
+      drag = null;
+      return;
+    }
     drag = {x: e.clientX, y: e.clientY};
     canvas.setPointerCapture(e.pointerId);
     canvas.classList.add('drag');
   });
   canvas.addEventListener('pointermove', (e) => {
+    if (touches.has(e.pointerId)) touches.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pinch && touches.size === 2) {
+      const [a, b] = [...touches.values()];
+      off.k = clamp(pinch.k * (pinch.d / Math.max(20, Math.hypot(a[0] - b[0], a[1] - b[1]))), 0.35, 2.6);
+      lastInput = T;
+      return;
+    }
     if (!drag) return;
     off.az -= ((e.clientX - drag.x) / scale) * 0.3;
     off.el = clamp(off.el + ((e.clientY - drag.y) / scale) * 0.2, -25, 60);
     drag = {x: e.clientX, y: e.clientY};
     lastInput = T;
   });
-  const endDrag = () => {
+  const endDrag = (e) => {
+    touches.delete(e.pointerId);
+    if (touches.size < 2) pinch = null;
     drag = null;
     canvas.classList.remove('drag');
   };
@@ -317,19 +360,22 @@ export async function runLive() {
       const rk = Math.max(0, 1 - (T - ring.t) / 0.55);
       cursor = {x: -99, y: -99, press: false, ring: rk, ringX: ring.x, ringY: ring.y};
     }
+    if (mobile) {
+      tgt = {...tgt, d: tgt.d * mob.k, sy: (tgt.sy ?? 0) * 0.5 - mob.strip / 2, sx: 0};
+    }
     const {m, panRate} = mechAt(seq, tau);
     const k = 1 - Math.exp(-dt / (AP.on ? 0.25 : 0.5));
     cam.az += wrap(tgt.az - cam.az) * k;
     for (const key of ['tx', 'ty', 'tz', 'el', 'd', 'sx', 'sy', 'head']) cam[key] += (tgt[key] - cam[key]) * k;
     const night = eased('night', 0.9);
-    const feeds = {ptz: FEED.ptz, lpr: FEED.lpr, lprK: lprShown(m)};
+    const feeds = mobile ? {ptz: ui.feeds.ptz, lpr: ui.feeds.lpr, lprK: lprShown(m)} : {ptz: FEED.ptz, lpr: FEED.lpr, lprK: lprShown(m)};
     const out = st.frame(m, {...cam, az: cam.az * D2R, el: cam.el * D2R}, {explode: eased('exploded', 0.8), cover: eased('cover'), night, feeds});
     const lastBox = out.plateBox;
     const display = Object.fromEntries(DISPLAY.map((x) => [x, disp[x].on]));
     frameConsole({seq, tau, m, panRate, view, display, night, near: isNear(view), labels: eased('labels', 0.6) * ss(BLEND * 0.5, BLEND * 0.5 + 0.6, since), cursor, plateBox: lastBox, faceBox: out.faceBox, tour: AP.on, since, paused: AP.on ? false : paused, speed: AP.on ? 1 : speed, speedK: speedK(AP.on ? 1 : speed)});
     if (tourChip.classList.contains('on') !== AP.on || !tourChip.firstChild) {
       tourChip.classList.toggle('on', AP.on);
-      tourChip.innerHTML = AP.on ? '<i></i>PASSEIO AUTOMÁTICO · CLIQUE PARA ASSUMIR' : '▶ RETOMAR PASSEIO';
+      tourChip.innerHTML = AP.on ? `<i></i>PASSEIO AUTOMÁTICO · ${mobile ? 'TOQUE' : 'CLIQUE'} PARA ASSUMIR` : '▶ RETOMAR PASSEIO';
     }
     if (!window.SIM_SHOWN) {
       window.SIM_SHOWN = true;
@@ -341,7 +387,7 @@ export async function runLive() {
     requestAnimationFrame(frame);
   };
   warmComposer(st.renderer, st.composer, st.scene, st.camera).then(() => requestAnimationFrame(frame));
-  window.LIVE = {st, cam, startTour, takeOver, get tier() {
+  window.LIVE = {st, cam, mobile, startTour, takeOver, get tier() {
     return tier;
   }, get T() {
     return T;
