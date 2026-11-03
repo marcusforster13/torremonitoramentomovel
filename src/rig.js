@@ -1,5 +1,5 @@
 // A geometria: o reboque do GLB (mastro telescópico, painéis que dobram), a cabeça de câmeras feita em código a partir
-// da foto do equipamento (4 Bullets, a speed dome PTZ, 2 LPRs com iluminador IR, a caixa de equipamentos com as
+// da foto do equipamento (a viga preta com 2 speed domes PTZ, a Bullet, 2 LPRs e 2 iluminadores IR, com as
 // antenas 4G), os carros com placa Mercosul e as coberturas no chão. update(s) posa tudo a partir do estado de kin.js.
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
@@ -56,63 +56,42 @@ export async function buildRig(renderer) {
     if (m.roughness !== undefined) m.roughness = Math.max(m.roughness, 0.42);
     m.envMapIntensity = 0.6;
   }
-  // o mastro, como um telescópico de verdade: o tubo azul de baixo é fixo e tem no topo uma luva fixa (a faixa azul e
-  // o anel cinza, separados do tubo móvel); o tubo cinza fino sai de dentro da luva ao subir e entra nela ao recolher.
-  // Do tubo móvel só aparece o que está acima da luva.
+  // o mastro: o tubo azul de baixo é fixo. A parte de cima sobe e desce inteira: o anel cinza vai na base dela e
+  // assenta no topo do tubo azul com o mastro recolhido; abaixo do anel sai de dentro do tubo azul um tubo azul mais
+  // fino, e o cinza só começa acima do anel. O que fica abaixo do topo do tubo azul é cortado (está dentro dele).
   const mastNode = model.getObjectByName('CanoParte1_Mesh');
   root.updateMatrixWorld(true);
   const blueBox = new THREE.Box3().setFromObject(model.getObjectByName('Cylinder019'));
   const blueTop = blueBox.max.y;
   const axis = blueBox.getCenter(new V3());
-  const grayLow = new THREE.Box3().setFromObject(mastNode).min.y;
-  const mast0 = mastNode.position.y + (blueTop - grayLow) + 0.002;
-  // as medidas da luva no modelo original: faixa azul de 20 cm (r 5,5 cm), 5 cm de folga, anel de 5 cm (r 12,4 cm)
   const band = mastNode.getObjectByName('Cylinder071');
   const ringMesh = mastNode.getObjectByName('Cylinder071_1');
-  const BAND_H = 0.2;
-  const GAP = 0.05;
-  const RING_H = 0.05;
-  const collarTop = blueTop + BAND_H + GAP + RING_H;
+  band.visible = false;
+  // a base do anel (os vértices com raio maior que 8 cm), com a parte de cima na posição do modelo
+  let ringLow = Infinity;
   {
-    const collar = new THREE.Group();
-    const bandMat = band.material.clone();
-    const ringMat = ringMesh.material.clone();
-    const c1 = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, BAND_H, 32), bandMat);
-    c1.position.set(axis.x, blueTop + BAND_H / 2, axis.z);
-    const c2 = new THREE.Mesh(new THREE.CylinderGeometry(0.047, 0.047, GAP, 24), ringMat);
-    c2.position.set(axis.x, blueTop + BAND_H + GAP / 2, axis.z);
-    const c3 = new THREE.Mesh(new THREE.CylinderGeometry(0.124, 0.124, RING_H, 40), ringMat);
-    c3.position.set(axis.x, blueTop + BAND_H + GAP + RING_H / 2, axis.z);
-    for (const c of [c1, c2, c3]) {
-      c.castShadow = true;
-      c.receiveShadow = true;
-      collar.add(c);
-    }
-    root.add(collar);
-    // tira do tubo móvel a faixa azul e os triângulos do anel (os vértices com raio maior que 8 cm)
-    band.visible = false;
-    const g = ringMesh.geometry.clone();
-    const pos = g.attributes.position;
+    const pos = ringMesh.geometry.attributes.position;
     const w = new V3();
-    const far = [];
     for (let i = 0; i < pos.count; i++) {
       w.fromBufferAttribute(pos, i).applyMatrix4(ringMesh.matrixWorld);
-      far.push(Math.hypot(w.x - axis.x, w.z - axis.z) > 0.08);
+      if (Math.hypot(w.x - axis.x, w.z - axis.z) > 0.08) ringLow = Math.min(ringLow, w.y);
     }
-    const idx = g.index ? Array.from(g.index.array) : [...Array(pos.count).keys()];
-    const keep = [];
-    for (let i = 0; i < idx.length; i += 3) if (!far[idx[i]] && !far[idx[i + 1]] && !far[idx[i + 2]]) keep.push(idx[i], idx[i + 1], idx[i + 2]);
-    g.setIndex(keep);
-    ringMesh.geometry = g;
   }
-  // o trecho do tubo fino onde ficavam a faixa e o anel (com o mastro em cima, de 3,85 a 4,40 m): um tubo que sobe e
-  // desce junto com o mastro, para o cinza ficar contínuo
-  const fill = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.6, 24), ringMesh.material);
-  const fillY = new THREE.Box3().setFromObject(band).getCenter(new V3()).y + 0.1;
+  // com o mastro em cima, o anel fica MAST_TRAVEL acima do topo do tubo azul (recolhido, assenta nele)
+  const lift = blueTop + MAST_TRAVEL - ringLow + 0.002;
+  const mast0 = mastNode.position.y + lift;
+  const ringTop0 = ringLow + lift;
+  // o tubo azul fino que sai de dentro do de baixo, do anel para baixo
+  const fill = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.056, MAST_TRAVEL + 0.3, 28), band.material.clone());
+  const fillY = ringTop0 - (MAST_TRAVEL + 0.3) / 2;
   fill.position.set(axis.x, fillY, axis.z);
   fill.castShadow = true;
+  fill.receiveShadow = true;
   root.add(fill);
-  const mastClip = [new THREE.Plane(new V3(0, 1, 0), -collarTop)];
+  // e, em cima, os suportes da cabeça antiga do modelo saem: o tubo de cima termina 0,9 m abaixo da cabeça nova, onde
+  // começa o tubo dela (o plano acompanha a altura da cabeça)
+  const mastTopClip = new THREE.Plane(new V3(0, -1, 0), SPEC.mastHigh - 0.9);
+  const mastClip = [new THREE.Plane(new V3(0, 1, 0), -blueTop), mastTopClip];
   for (const o of [...(() => {
     const l = [];
     mastNode.traverse((m) => m.isMesh && l.push(m));
@@ -286,105 +265,121 @@ export async function buildRig(renderer) {
     f?.(m);
     return m;
   };
-  // o colar no topo do mastro e a cruzeta
-  head.add(mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.22, 24), steel, (m) => (m.position.y = -0.02)));
-  head.add(mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.0, 20), steel, (m) => (m.position.y = -0.5)));
-  head.add(mesh(new THREE.BoxGeometry(0.62, 0.04, 0.05), steel, (m) => (m.position.y = 0.06)));
-  head.add(mesh(new THREE.BoxGeometry(0.05, 0.04, 0.62), steel, (m) => (m.position.y = 0.06)));
+  // a cabeça como na foto do equipamento: uma viga preta no topo do mastro; em cima dela, a Bullet branca no centro,
+  // dois iluminadores IR e as duas LPR nas pontas; pendurada em cada ponta, num braço branco, uma speed dome PTZ.
+  // +z é o lado da rua, x corre ao longo dela.
+  const BEAM = {w: 1.3, h: 0.22, d: 0.34, y: 0.19};
+  const TOP = BEAM.y + BEAM.h / 2;
+  head.add(mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.16, 24), steel, (m) => (m.position.y = -0.06)));
+  head.add(mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.0, 20), steel, (m) => (m.position.y = -0.6)));
+  const beam = new THREE.Group();
+  beam.add(mesh(new RoundedBoxGeometry(BEAM.w, BEAM.h, BEAM.d, 2, 0.015), black, (m) => (m.position.y = BEAM.y)));
+  // a faixa de baixo, mais estreita e recuada, onde entram o mastro e os braços
+  beam.add(mesh(new THREE.BoxGeometry(BEAM.w - 0.08, 0.08, BEAM.d - 0.06), new THREE.MeshStandardMaterial({color: '#2b2f36', roughness: 0.6, metalness: 0.2}), (m) => (m.position.y = BEAM.y - BEAM.h / 2 - 0.04)));
+  // os parafusos da tampa e a etiqueta
+  for (const x of [-0.5, -0.25, 0.25, 0.5]) beam.add(mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.004, 10), steel, (m) => {
+    m.rotation.x = Math.PI / 2;
+    m.position.set(x, BEAM.y + 0.07, BEAM.d / 2 + 0.002);
+  }));
+  beam.add(mesh(new THREE.PlaneGeometry(0.22, 0.068), badgeMat, (m) => m.position.set(0, BEAM.y - 0.02, BEAM.d / 2 + 0.002)));
+  head.add(beam);
+  parts.box = beam;
 
-  // Bullet: corpo branco arredondado, viseira, vidro escuro, suporte
-  const bulletGeo = new RoundedBoxGeometry(0.3, 0.1, 0.11, 3, 0.04);
-  const hoodGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.36, 24, 1, true, -Math.PI / 2.6, (Math.PI * 2) / 2.6);
-  const makeBullet = () => {
+  // Bullet: corpo branco arredondado, viseira, vidro escuro (frente em +x do grupo)
+  const makeBullet = (L = 0.34) => {
     const g = new THREE.Group();
-    g.add(mesh(bulletGeo, white));
-    g.add(mesh(hoodGeo, white, (m) => {
-      m.rotation.z = Math.PI / 2;
-      m.position.set(0.03, 0.005, 0);
-      m.material = white.clone();
-      m.material.side = THREE.DoubleSide;
-    }));
-    g.add(mesh(new THREE.CircleGeometry(0.042, 24), glass, (m) => {
+    g.add(mesh(new RoundedBoxGeometry(L, 0.11, 0.12, 3, 0.04), white));
+    g.add(mesh(new THREE.BoxGeometry(L + 0.06, 0.012, 0.16), white, (m) => m.position.set(0.03, 0.075, 0)));
+    g.add(mesh(new THREE.CircleGeometry(0.045, 24), glass, (m) => {
       m.rotation.y = Math.PI / 2;
-      m.position.x = 0.151;
+      m.position.x = L / 2 + 0.001;
     }));
-    g.add(mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.08, 12), white, (m) => m.position.set(-0.05, -0.08, 0)));
-    g.add(mesh(new THREE.PlaneGeometry(0.11, 0.034), badgeMat, (m) => m.position.set(0, 0, 0.0556)));
+    g.add(mesh(new THREE.PlaneGeometry(0.12, 0.037), badgeMat, (m) => m.position.set(-0.03, 0, 0.0606)));
     return g;
   };
-  parts.bullets = [0, 90, 180, 270].map((yaw) => {
+  {
     const arm = new THREE.Group();
-    arm.rotation.y = yaw * D2R;
-    const b = makeBullet();
-    b.position.set(0.3, SPEC.bullet.dy + 0.04, 0);
-    b.rotation.z = -14 * D2R;
+    arm.position.set(0, TOP, 0.02);
+    arm.add(mesh(new THREE.CylinderGeometry(0.02, 0.026, 0.14, 12), white, (m) => (m.position.y = 0.07)));
+    const b = makeBullet(0.38);
+    b.position.y = 0.2;
+    b.rotation.set(0, -Math.PI / 2, -8 * D2R, 'YZX');
     arm.add(b);
     head.add(arm);
-    return {arm, cam: b};
+    parts.bullets = [{arm, cam: b}];
+  }
+
+  // os iluminadores IR: caixas pretas com o painel de LEDs para a frente
+  const irMat = new THREE.MeshStandardMaterial({color: '#3a1010', emissive: '#ff3b3b', emissiveIntensity: 0.0, roughness: 0.3});
+  parts.ir = [-0.28, 0.28].map((x) => {
+    const g = new THREE.Group();
+    g.position.set(x, TOP, 0.02);
+    g.add(mesh(new THREE.BoxGeometry(0.04, 0.05, 0.04), black, (m) => (m.position.y = 0.025)));
+    g.add(mesh(new RoundedBoxGeometry(0.18, 0.1, 0.13, 2, 0.015), black, (m) => (m.position.y = 0.1)));
+    g.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.05, 20), grey, (m) => {
+      m.rotation.x = Math.PI / 2;
+      m.position.set(-0.04, 0.17, 0.0);
+    }));
+    for (let i = 0; i < 12; i++)
+      g.add(mesh(new THREE.CircleGeometry(0.009, 10), irMat, (m) => m.position.set(-0.06 + (i % 6) * 0.024, 0.085 + Math.floor(i / 6) * 0.03, 0.0662)));
+    head.add(g);
+    return g;
   });
 
-  // a caixa de equipamentos (NVR, roteador 4G, controlador) e as antenas
-  const box = new THREE.Group();
-  box.add(mesh(new RoundedBoxGeometry(0.3, 0.42, 0.2, 2, 0.02), black));
-  box.add(mesh(new THREE.PlaneGeometry(0.2, 0.062), badgeMat, (m) => {
-    m.position.set(0, 0.12, -0.1011);
-    m.rotation.y = Math.PI;
-  }));
-  for (const x of [-0.09, 0.09]) box.add(mesh(new THREE.CylinderGeometry(0.009, 0.012, 0.32, 10), black, (m) => m.position.set(x, 0.37, -0.03)));
-  box.add(mesh(new THREE.BoxGeometry(0.05, 0.03, 0.01), new THREE.MeshBasicMaterial({color: '#28d17c'}), (m) => m.position.set(0.1, -0.16, -0.101)));
-  box.position.set(0, -0.36, -0.17);
-  head.add(box);
-  parts.box = box;
-
-  // PTZ: braço até a frente (lado da rua), carcaça branca, bolha fumê, a câmera dentro gira em pan e tilt
-  const ptz = new THREE.Group();
-  ptz.position.set(0, SPEC.ptz.dy, SPEC.ptz.arm);
-  head.add(mesh(new THREE.BoxGeometry(0.05, 0.05, SPEC.ptz.arm), white, (m) => m.position.set(0, SPEC.ptz.dy + 0.2, SPEC.ptz.arm / 2)));
-  ptz.add(mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.12, 12), white, (m) => (m.position.y = 0.15)));
-  const housing = new THREE.Group();
-  ptz.add(housing);
-  housing.add(mesh(new THREE.CylinderGeometry(0.12, 0.13, 0.16, 32), white, (m) => (m.position.y = 0.02)));
-  housing.add(mesh(new THREE.TorusGeometry(0.125, 0.012, 8, 32), grey, (m) => {
-    m.rotation.x = Math.PI / 2;
-    m.position.y = -0.06;
-  }));
-  housing.add(mesh(new THREE.PlaneGeometry(0.13, 0.04), badgeMat, (m) => m.position.set(0, 0.04, 0.1255)));
+  // PTZ: duas speed domes penduradas nas pontas da viga, num braço branco; a da direita acompanha, a da esquerda varre
   const bubbleMat = new THREE.MeshPhysicalMaterial({color: '#2a3140', roughness: 0.05, metalness: 0.1, transmission: 0, transparent: true, opacity: 0.55, depthWrite: false});
-  const bubble = mesh(new THREE.SphereGeometry(0.112, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), bubbleMat, (m) => (m.position.y = -0.06));
-  bubble.castShadow = false;
-  bubble.renderOrder = 3;
-  ptz.add(bubble);
-  const tiltG = new THREE.Group();
-  tiltG.position.y = -0.07;
-  housing.add(tiltG);
-  tiltG.add(mesh(new THREE.SphereGeometry(0.06, 20, 12), black));
-  tiltG.add(mesh(new THREE.CylinderGeometry(0.03, 0.034, 0.07, 20), black, (m) => {
-    m.rotation.z = -Math.PI / 2;
-    m.position.x = 0.06;
-  }));
-  tiltG.add(mesh(new THREE.CircleGeometry(0.026, 20), glass, (m) => {
-    m.rotation.y = Math.PI / 2;
-    m.position.x = 0.096;
-  }));
-  head.add(ptz);
-  parts.ptz = {g: ptz, housing, tiltG};
+  const makePtz = (side) => {
+    const ptz = new THREE.Group();
+    ptz.position.set(side * SPEC.ptz.x, SPEC.ptz.dy, 0);
+    // o braço: sai da ponta da viga, vira para baixo e segura a dome
+    head.add(mesh(new THREE.BoxGeometry(SPEC.ptz.x - BEAM.w / 2 + 0.06, 0.05, 0.06), white, (m) => m.position.set(side * (BEAM.w / 2 + (SPEC.ptz.x - BEAM.w / 2) / 2), BEAM.y - 0.02, 0)));
+    ptz.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.12, 14), white, (m) => (m.position.y = 0.15)));
+    const housing = new THREE.Group();
+    ptz.add(housing);
+    housing.add(mesh(new THREE.CylinderGeometry(0.105, 0.12, 0.15, 32), white, (m) => (m.position.y = 0.02)));
+    housing.add(mesh(new THREE.TorusGeometry(0.115, 0.01, 8, 32), grey, (m) => {
+      m.rotation.x = Math.PI / 2;
+      m.position.y = -0.055;
+    }));
+    housing.add(mesh(new THREE.PlaneGeometry(0.12, 0.037), badgeMat, (m) => m.position.set(0, 0.04, 0.1155)));
+    const bubble = mesh(new THREE.SphereGeometry(0.104, 32, 16, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), bubbleMat, (m) => (m.position.y = -0.055));
+    bubble.castShadow = false;
+    bubble.renderOrder = 3;
+    ptz.add(bubble);
+    const tiltG = new THREE.Group();
+    tiltG.position.y = -0.065;
+    housing.add(tiltG);
+    tiltG.add(mesh(new THREE.SphereGeometry(0.058, 20, 12), black));
+    tiltG.add(mesh(new THREE.CylinderGeometry(0.03, 0.034, 0.07, 20), black, (m) => {
+      m.rotation.z = -Math.PI / 2;
+      m.position.x = 0.055;
+    }));
+    tiltG.add(mesh(new THREE.CircleGeometry(0.026, 20), glass, (m) => {
+      m.rotation.y = Math.PI / 2;
+      m.position.x = 0.091;
+    }));
+    head.add(ptz);
+    return {g: ptz, housing, tiltG, side};
+  };
+  parts.ptz = makePtz(1);
+  parts.ptz2 = makePtz(-1);
 
-  // LPR: carcaça cinza escura mais longa, lente e um anel de LEDs IR 850 nm
-  const irMat = new THREE.MeshStandardMaterial({color: '#3a1010', emissive: '#ff3b3b', emissiveIntensity: 0.0, roughness: 0.3});
+  // LPR: câmeras de caixa cinza-escuro com viseira, nas pontas de cima da viga, cada uma mirando a sua faixa
+  const lprMat = new THREE.MeshStandardMaterial({color: '#3a3f47', roughness: 0.5, metalness: 0.3});
   const makeLpr = () => {
     const g = new THREE.Group();
-    g.add(mesh(new RoundedBoxGeometry(0.36, 0.11, 0.13, 3, 0.025), grey));
-    g.add(mesh(new THREE.BoxGeometry(0.4, 0.012, 0.15), grey, (m) => m.position.set(0.03, 0.062, 0)));
-    g.add(mesh(new THREE.BoxGeometry(0.008, 0.095, 0.115), glass, (m) => m.position.x = 0.181));
-    g.add(mesh(new THREE.CircleGeometry(0.03, 24), new THREE.MeshStandardMaterial({color: '#05070a', roughness: 0.05, metalness: 0.8}), (m) => {
+    g.add(mesh(new RoundedBoxGeometry(0.32, 0.12, 0.13, 3, 0.02), lprMat));
+    g.add(mesh(new THREE.BoxGeometry(0.38, 0.012, 0.16), lprMat, (m) => m.position.set(0.04, 0.072, 0)));
+    g.add(mesh(new THREE.BoxGeometry(0.008, 0.1, 0.115), glass, (m) => (m.position.x = 0.161)));
+    g.add(mesh(new THREE.CircleGeometry(0.032, 24), new THREE.MeshStandardMaterial({color: '#05070a', roughness: 0.05, metalness: 0.8}), (m) => {
       m.rotation.y = Math.PI / 2;
-      m.position.set(0.186, 0, 0);
+      m.position.set(0.166, 0, 0);
     }));
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2;
-      g.add(mesh(new THREE.CircleGeometry(0.008, 10), irMat, (m) => {
+      g.add(mesh(new THREE.CircleGeometry(0.007, 10), irMat, (m) => {
         m.rotation.y = Math.PI / 2;
-        m.position.set(0.186, Math.sin(a) * 0.043, Math.cos(a) * 0.043);
+        m.position.set(0.166, Math.sin(a) * 0.045, Math.cos(a) * 0.045);
       }));
     }
     g.add(mesh(new THREE.PlaneGeometry(0.12, 0.037), badgeMat, (m) => m.position.set(-0.04, 0, 0.0656)));
@@ -402,11 +397,11 @@ export async function buildRig(renderer) {
     const cam = makeLpr();
     cam.rotation.set(0, yaw, pitch, 'YZX');
     arm.add(cam);
-    arm.add(mesh(new THREE.BoxGeometry(0.04, 0.12, 0.04), grey, (m) => (m.position.y = 0.11)));
+    // o pé do suporte, apoiado na viga
+    arm.add(mesh(new THREE.BoxGeometry(0.06, SPEC.lpr.dy - TOP, 0.06), black, (m) => (m.position.y = -(SPEC.lpr.dy - TOP) / 2 - 0.06)));
     head.add(arm);
     return {arm, cam, yaw, pitch};
   });
-  head.add(mesh(new THREE.BoxGeometry(0.4, 0.04, 0.05), steel, (m) => (m.position.y = SPEC.lpr.dy + 0.17)));
 
   // ------------------------------------------------------------ os carros: sedã e SUV do pacote CC-BY de Comrade1280
   // (os mesmos do projeto Lei Seca), frente em +x, rodas soltas para girar; a placa Mercosul na frente e atrás
@@ -490,7 +485,7 @@ export async function buildRig(renderer) {
   cover.userData.cover = true;
   root.add(cover);
   const fanMats = [];
-  for (const yaw of [0, 90, 180, 270]) {
+  for (const yaw of [270]) {
     const m = coverMat('#00b8cc', 0.12);
     fanMats.push(m);
     const geo = new THREE.RingGeometry(1.2, 16, 48, 1, (-SPEC.bullet.hfov / 2) * D2R, SPEC.bullet.hfov * D2R);
@@ -547,16 +542,24 @@ export async function buildRig(renderer) {
     const cov = opt.cover ?? 0;
     mastNode.position.y = mast0 - (1 - s.mast) * MAST_TRAVEL;
     fill.position.y = fillY - (1 - s.mast) * MAST_TRAVEL;
+    mastTopClip.constant = s.h - 0.9;
     head.position.set(0, s.h, 0);
     foldPanels(s.folds);
-    // explodida: cada câmera se afasta ao longo do próprio eixo
-    for (const b of parts.bullets) b.cam.position.x = 0.3 + explode * 0.45;
-    parts.box.position.z = -0.17 - explode * 0.4;
-    parts.ptz.g.position.set(0, SPEC.ptz.dy - explode * 0.25, SPEC.ptz.arm + explode * 0.35);
-    for (const [k, l] of parts.lpr.entries()) l.arm.position.set((k === 0 ? -0.18 : 0.18) + (k === 0 ? -1 : 1) * explode * 0.45, SPEC.lpr.dy - explode * 0.3, 0.05);
-    // PTZ: pan em torno do eixo vertical (0° = +z, a rua), tilt para baixo
+    // explodida: cada câmera se afasta da viga
+    for (const b of parts.bullets) b.arm.position.set(0, TOP + explode * 0.4, 0.02 + explode * 0.25);
+    parts.ir.forEach((g, i) => g.position.set((i ? 0.28 : -0.28) + (i ? 1 : -1) * explode * 0.15, TOP + explode * 0.25, 0.02 + explode * 0.35));
+    for (const p of [parts.ptz, parts.ptz2]) p.g.position.set(p.side * (SPEC.ptz.x + explode * 0.4), SPEC.ptz.dy - explode * 0.3, 0);
+    for (const [k, l] of parts.lpr.entries()) {
+      const c = lprCam(k, 0);
+      l.arm.position.set(c.x + (k === 0 ? -1 : 1) * explode * 0.35, SPEC.lpr.dy + explode * 0.35, c.z);
+    }
+    parts.box.position.z = -explode * 0.0;
+    // PTZ: pan em torno do eixo vertical (0° = +z, a rua), tilt para baixo; a segunda faz a varredura do outro lado
     parts.ptz.housing.rotation.y = (s.ptz.pan - 90) * D2R;
     parts.ptz.tiltG.rotation.z = -s.ptz.tilt * D2R;
+    const scan2 = s.seq === 'patrol' ? -40 - 35 * Math.sin(s.tau * 0.4 + 1) : -30;
+    parts.ptz2.housing.rotation.y = (scan2 - 90) * D2R;
+    parts.ptz2.tiltG.rotation.z = -16 * D2R;
     irMat.emissiveIntensity = s.power * (0.35 + 0.65 * (opt.night ?? 0));
     // os carros
     cars.forEach((c, i) => {
@@ -620,11 +623,11 @@ export async function buildRig(renderer) {
   const anchors = {
     ptz: () => parts.ptz.housing.getWorldPosition(new V3()),
     bullet: () => parts.bullets[0].cam.getWorldPosition(new V3()),
-    bullet2: () => parts.bullets[1].cam.getWorldPosition(new V3()),
+    ptz2: () => parts.ptz2.housing.getWorldPosition(new V3()),
+    ir: () => parts.ir[0].localToWorld(new V3(0, 0.12, 0)),
     lpr0: () => parts.lpr[0].cam.getWorldPosition(new V3()),
     lpr1: () => parts.lpr[1].cam.getWorldPosition(new V3()),
-    box: () => parts.box.getWorldPosition(new V3()),
-    antenna: () => parts.box.localToWorld(new V3(0.09, 0.5, -0.03)),
+    box: () => parts.box.localToWorld(new V3(-0.12, 0.13, 0.17)),
     mast: () => new V3(0, head.position.y - 1.4, 0),
     panel: () => center.getWorldPosition(new V3()),
     battery: () => new V3(-1.9, 0.9, 0.2),

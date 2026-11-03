@@ -9,35 +9,42 @@ import {createXptoStage} from './stage.js';
 
 // cada vista fica no ar enquanto algo acontece nela: a implantação, o carro 1 e a leitura da placa, o pedestre e o
 // alerta, o carro 2 à noite, a cabeça explodida e o recolhimento
+// a história, com calma: a implantação; a PTZ acompanhando o carro 1 e a LPR lendo a placa dele; a apresentação de
+// cada câmera; o pedestre na calçada, o zoom no rosto e o alerta de mandado; o carro 2 à noite; a cabeça explodida;
+// o recolhimento. Cada cena fica no ar enquanto o que ela mostra acontece.
 export const SCRIPT = [
   {t: 0, seq: 'deploy', view: 'hero'},
   {t: 1.8, display: 'labels'},
   {t: 5.0, view: 'lateral'},
   {t: 9.0, view: 'hero'},
-  {t: 13.0, display: 'labels'},
-  {t: 14.0, seq: 'patrol', view: 'rua'},
-  {t: 15.0, display: 'cover'},
-  {t: 16.0, view: 'lpr'},
-  // a cabeça de perto com o nome de cada câmera: fica no ar ~5 s depois que a câmera chega
-  {t: 21.6, view: 'ptz'},
-  {t: 22.0, display: 'labels'},
-  {t: 29.2, display: 'labels'},
-  {t: 29.6, view: 'calcada'},
-  {t: 35.8, view: 'lpr2'},
-  {t: 36.2, display: 'night'},
-  {t: 42.0, display: 'night'},
-  // a cabeça explodida, também com os nomes
-  {t: 42.4, view: 'cabeca'},
-  {t: 43.0, display: 'labels'},
-  {t: 43.4, display: 'exploded'},
-  {t: 49.8, display: 'exploded'},
+  {t: 13.4, display: 'labels'},
+  // a PTZ acompanha o carro 1 chegando
+  {t: 15.0, seq: 'patrol', view: 'rua'},
+  {t: 15.6, display: 'cover'},
+  // a LPR 1 lê a placa
+  {t: 19.6, view: 'lpr'},
+  // a apresentação de cada câmera
+  {t: 26.0, view: 'ptz'},
+  {t: 26.4, display: 'labels'},
+  {t: 33.4, display: 'labels'},
+  // o pedestre: a PTZ trava nele, dá zoom no rosto, e o alerta de mandado dispara
+  {t: 33.8, view: 'calcada'},
+  // o carro 2 à noite, lido pela LPR 2
+  {t: 42.6, view: 'lpr2'},
+  {t: 43.0, display: 'night'},
+  {t: 49.4, display: 'night'},
+  // a cabeça explodida, com os nomes
+  {t: 49.8, view: 'cabeca'},
   {t: 50.4, display: 'labels'},
-  {t: 50.6, display: 'cover'},
-  {t: 50.8, view: 'hero'},
-  {t: 51.2, display: 'orbit'},
-  {t: 52.0, seq: 'stow'},
+  {t: 50.8, display: 'exploded'},
+  {t: 57.8, display: 'exploded'},
+  {t: 58.4, display: 'labels'},
+  {t: 58.6, display: 'cover'},
+  {t: 58.8, view: 'hero'},
+  {t: 59.2, display: 'orbit'},
+  {t: 60.4, seq: 'stow'},
 ];
-export const DURATION = 64;
+export const DURATION = 72.5;
 export const DEFAULTS = {duration: DURATION, fps: 60, theme: 'light', hud: {enabled: false, title: 'xpto', subtitle: ''}, director: {enabled: false}, watermark: ''};
 const D2R = Math.PI / 180;
 const smoother = (x) => {
@@ -74,10 +81,11 @@ export const mechAt = (seq, tau) => {
 export const VIEW_FN = {
   hero: (u) => ({tx: -1.1, ty: 2.95, tz: 0.4, az: 38 + 1.0 * u, el: 11, d: 14, sx: 10, sy: -18, head: 0}),
   lateral: (u) => ({tx: -1.2, ty: 2.95, tz: 0.2, az: 8 + 0.8 * u, el: 5, d: 13, sx: 10, sy: -18, head: 0}),
-  rua: (u) => ({tx: -1.6, ty: 2.2, tz: 2.2, az: 52 + 0.8 * u, el: 13, d: 15, sx: 10, sy: -20, head: 0}),
-  calcada: (u) => ({tx: 2.6, ty: 2.1, tz: 1.6, az: 20 + 0.8 * u, el: 8, d: 13, sx: 10, sy: -22, head: 0}),
-  cabeca: (u) => ({tx: 0, ty: -0.3, tz: 0.05, az: 215 + 3 * u, el: 9, d: 3.4, sx: 10, sy: -24, head: 1}),
-  ptz: (u) => ({tx: 0.05, ty: -0.35, tz: 0.3, az: 28 + 2 * u, el: 4, d: 3.0, sx: 10, sy: -24, head: 1}),
+  // atrás da torre, olhando a rua na direção de onde o carro 1 vem: a torre, o feixe da PTZ e o carro chegando
+  rua: (u) => ({tx: -11, ty: 1.4, tz: 4.2, az: 104 + 0.5 * u, el: 13, d: 25, sx: 10, sy: -20, head: 0}),
+  calcada: (u) => ({tx: 4.6, ty: 1.8, tz: 2.4, az: 22 + 0.5 * u, el: 8, d: 14, sx: 10, sy: -22, head: 0}),
+  cabeca: (u) => ({tx: 0, ty: 0.05, tz: 0.05, az: -22 + 2 * u, el: 12, d: 6.0, sx: 10, sy: -24, head: 1}),
+  ptz: (u) => ({tx: 0.1, ty: -0.12, tz: 0.05, az: 16 + 1.2 * u, el: 5, d: 5.2, sx: 10, sy: -24, head: 1}),
   // atrás e acima da torre, olhando a faixa por onde o carro chega: a torre, a zona de leitura e o carro no mesmo quadro
   lpr: (u) => ({tx: -6, ty: 1.2, tz: 4.6, az: 124 - 0.6 * u, el: 19, d: 16, sx: 10, sy: -20, head: 0}),
   lpr2: (u) => ({tx: 5.0, ty: 1.4, tz: 6.0, az: 236 - 0.6 * u, el: 30, d: 18, sx: 10, sy: -20, head: 0}),
@@ -155,15 +163,16 @@ export function makeCursor(ui) {
 
 // ------------------------------------------------------------ os rótulos: de perto as câmeras, de longe o reboque
 const NEAR = [
-  {name: 'CÂMERA PTZ', sub: 'SPEED DOME · ZOOM ÓPTICO 32× · PAN 360°', at: 'ptz'},
-  {name: 'BULLETS (4×)', sub: '4 MP · 103° CADA · 360° NO TOTAL', at: 'bullet'},
+  {name: 'PTZ 1 · RASTREIO', sub: 'SPEED DOME · ZOOM ÓPTICO 32× · PAN 360°', at: 'ptz'},
+  {name: 'PTZ 2 · VARREDURA', sub: 'SPEED DOME · CABO ESPIRAL', at: 'ptz2'},
+  {name: 'BULLET', sub: '4 MP · 103° · VISÃO GERAL DA RUA', at: 'bullet'},
   {name: 'LPR 1 · FAIXA 1', sub: 'f 12 mm · IR 850 nm · 1/1000 s', at: 'lpr0'},
   {name: 'LPR 2 · FAIXA 2', sub: 'f 18 mm · IR 850 nm · 1/1000 s', at: 'lpr1'},
-  {name: 'CAIXA DE EQUIPAMENTOS', sub: 'NVR · ROTEADOR 4G · CONTROLADOR', at: 'box'},
-  {name: 'ANTENAS 4G', sub: 'IMAGEM AO VIVO NA CENTRAL', at: 'antenna'},
+  {name: 'ILUMINADOR IR', sub: '850 nm · LEITURA À NOITE', at: 'ir'},
+  {name: 'VIGA DE EQUIPAMENTOS', sub: 'NVR · ROTEADOR 4G · CONTROLADOR', at: 'box'},
 ];
 const FAR = [
-  {name: 'CABEÇA DE CÂMERAS', sub: 'PTZ · 4 BULLETS · 2 LPR', at: 'ptz'},
+  {name: 'CABEÇA DE CÂMERAS', sub: '2 PTZ · BULLET · 2 LPR', at: 'ptz'},
   {name: 'MASTRO TELESCÓPICO', sub: '4,25 → 5,65 m', at: 'mast'},
   {name: 'PAINÉIS SOLARES', sub: '3 × 600 Wp · DOBRÁVEIS', at: 'panel'},
   {name: 'BANCO DE BATERIAS', sub: '4 × 200 Ah · 9,6 kWh', at: 'battery'},

@@ -19,12 +19,12 @@ export const SPEC = {
   plateW: 0.4, // placa Mercosul 400 x 130 mm
   plateH: 0.13,
   carLen: 4.4,
-  lpr: {px: 1920, sensorW: 5.6, f: [12, 18], shutter: 1 / 1000, minPx: 130, dy: -0.72, look: [11, 14]},
-  ptz: {zoom: 32, hfovWide: 59, panMax: 240, tiltMin: -15, tiltMax: 90, dy: -0.38, arm: 0.42},
-  bullet: {hfov: 103, range: 30, n: 4, dy: 0.12},
+  lpr: {px: 1920, sensorW: 5.6, f: [12, 18], shutter: 1 / 1000, minPx: 130, dy: 0.42, look: [11, 14]},
+  ptz: {zoom: 32, hfovWide: 59, panMax: 240, tiltMin: -15, tiltMax: 90, dy: -0.02, x: 0.84, n: 2},
+  bullet: {hfov: 103, range: 30, n: 1},
   solar: {n: 3, wp: 600},
   battery: {n: 4, ah: 200, v: 12},
-  load: {ptz: 24, ptzMotor: 12, bullet: 6, lpr: 9, lprIr: 7, core: 22},
+  load: {ptz: 24, ptzMotor: 12, bullet: 6, lpr: 9, lprIr: 7, ir: 10, core: 22},
 };
 export const LPR_HFOV = SPEC.lpr.f.map((f) => (2 * Math.atan(SPEC.lpr.sensorW / (2 * f))) / D2R); // 26,3° e 17,7°
 export const BATT_WH = SPEC.battery.n * SPEC.battery.ah * SPEC.battery.v; // 9600 Wh
@@ -32,14 +32,14 @@ export const BATT_WH = SPEC.battery.n * SPEC.battery.ah * SPEC.battery.v; // 960
 // ------------------------------------------------------------ os carros: placa, faixa, velocidade, quando passam
 // cada carro: entra em x0 no instante t0 da sequência MONITORAR e anda a v m/s ao longo de dir
 export const CARS = [
-  {plate: 'XPT4A23', model: 'seda', len: 4.36, color: '#c9ced6', lane: 0, dir: 1, v: 40 / 3.6, t0: 0.4, x0: -42},
-  {plate: 'BRA2E19', model: 'suv', len: 4.62, color: '#2b3f6b', lane: 1, dir: -1, v: 50 / 3.6, t0: 21.0, x0: 44},
+  {plate: 'XPT4A23', model: 'seda', len: 4.36, color: '#c9ced6', lane: 0, dir: 1, v: 40 / 3.6, t0: 1.0, x0: -80},
+  {plate: 'BRA2E19', model: 'suv', len: 4.62, color: '#2b3f6b', lane: 1, dir: -1, v: 50 / 3.6, t0: 28.3, x0: 44},
 ];
 
 // ------------------------------------------------------------ o pedestre: anda pela calçada na direção da torre
 // A PTZ trava nele entre lock e release, dá zoom no rosto e, com pixels suficientes no rosto, consulta o banco de
 // mandados (BNMP). Os dados do alerta são fictícios.
-export const PERSON = {t0: 8.0, x0: 13, z: 3.15, v: 1.3, head: 1.62, lock: 9.8, release: 17.4, faceW: 0.16, frame: 1.1, minFacePx: 90, maxD: 11.5, lookup: 0.8};
+export const PERSON = {t0: 18.5, x0: 13, z: 3.15, v: 1.3, head: 1.62, lock: 20.3, release: 27.9, faceW: 0.16, frame: 1.1, minFacePx: 90, maxD: 11.5, lookup: 0.8};
 export const WARRANT = {sim: 0.94, ref: 'Nº 0001234-56.2026 (FICTÍCIO)', base: 'BNMP · CNJ'};
 export function personAt(tau) {
   const s = tau - PERSON.t0;
@@ -52,7 +52,7 @@ export function personAt(tau) {
 // ------------------------------------------------------------ sequências
 export const SEQ = {
   deploy: {dur: 13, from: 'TRANSPORTE', to: 'EM OPERAÇÃO'},
-  patrol: {dur: 33, from: 'VIGILÂNCIA', to: 'FIM DO CICLO'},
+  patrol: {dur: 46, from: 'VIGILÂNCIA', to: 'FIM DO CICLO'},
   stow: {dur: 11, from: 'EM OPERAÇÃO', to: 'TRANSPORTE'},
 };
 // a implantação: o mastro sobe primeiro (a cabeça sai do caminho), depois os painéis abrem um de cada vez, o de cima
@@ -69,7 +69,7 @@ export function carAt(c, tau) {
   const s = tau - c.t0;
   if (s < 0) return null;
   const x = c.x0 + c.dir * c.v * s;
-  if (Math.abs(x) > 46) return null;
+  if (Math.abs(x) > 90) return null;
   return {x, z: SPEC.lane[c.lane], dir: c.dir, s};
 }
 
@@ -93,7 +93,7 @@ export function lprGeom(car, cam, k = 0) {
   return {d, pixels, vert, blur, plateX: px};
 }
 
-export const lprCam = (k, h) => ({x: k === 0 ? -0.18 : 0.18, y: h + SPEC.lpr.dy, z: 0.05});
+export const lprCam = (k, h) => ({x: k === 0 ? -0.55 : 0.55, y: h + SPEC.lpr.dy, z: 0.02});
 /** O que a LPR k vê do carro c (com c.i): null se o carro não vem na direção dela ou já passou. */
 export function lprLook(k, c, h) {
   const cam = lprCam(k, h);
@@ -109,7 +109,7 @@ export function lprLook(k, c, h) {
 }
 
 // ------------------------------------------------------------ PTZ: alvos e mira
-const ptzPosAt = (h) => ({x: 0, y: h + SPEC.ptz.dy, z: SPEC.ptz.arm});
+const ptzPosAt = (h) => ({x: SPEC.ptz.x, y: h + SPEC.ptz.dy, z: 0});
 /** A mira (pan, tilt, zoom, distância) para um alvo: 'scan', 'c0', 'c1' (carros) ou 'p' (o rosto do pedestre). */
 function aimOf(id, tau, P) {
   if (id === 'scan') return {pan: 35 + 40 * Math.sin(tau * 0.5), tilt: 14, zoom: 1, d: 20};
@@ -139,7 +139,7 @@ const targetRaw = (tau) => {
   if (personAt(tau) && tau >= PERSON.lock && tau < PERSON.release) return 'p';
   for (let i = CARS.length - 1; i >= 0; i--) {
     const c = carAt(CARS[i], tau);
-    if (c && Math.abs(c.x) < 34) return 'c' + i;
+    if (c && Math.abs(c.x) < 70) return 'c' + i;
   }
   return 'scan';
 };
@@ -224,7 +224,7 @@ export function stateAt(seq, tau) {
   // energia: a carga vem do que está ligado; o sol, da área aberta dos painéis
   const L = SPEC.load;
   const moving = seq === 'patrol' && (out.ptz.track >= 0 || out.ptz.person) ? 1 : 0;
-  out.watts = base.power * (L.core + L.ptz + L.ptzMotor * moving + SPEC.bullet.n * L.bullet + 2 * (L.lpr + L.lprIr * 0.25));
+  out.watts = base.power * (L.core + SPEC.ptz.n * L.ptz + L.ptzMotor * moving + SPEC.bullet.n * L.bullet + 2 * (L.lpr + L.lprIr * 0.25) + 2 * L.ir * 0.25);
   out.solar = SPEC.solar.wp * (1 + base.folds[0] + base.folds[1]) * 0.62;
   out.autonomy = out.watts > 1 ? (BATT_WH * 0.8) / out.watts : Infinity;
   return out;
@@ -281,7 +281,7 @@ export function statusOf(s) {
   const live = s.lpr.find((l) => l && l.readable);
   if (live) return ['Leitura de placa', `LPR ${s.lpr.indexOf(live) + 1} · ${Math.round(live.pixels)} px NA PLACA`, 'ok'];
   if (s.ptz.track >= 0) return ['Rastreando veículo', `PTZ ${s.ptz.zoom.toFixed(1).replace('.', ',')}× · ${Math.round(s.ptz.d ?? 0)} m`, 'ok'];
-  return ['Vigilância', 'PTZ EM VARREDURA', 'ok'];
+  return ['Vigilância', '2 PTZ EM VARREDURA', 'ok'];
 }
 
 /** A fase escrita na barra de operação. */

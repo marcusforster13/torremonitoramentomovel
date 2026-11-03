@@ -1,7 +1,8 @@
 # Torre de Monitoramento Móvel · XPTO inc.
 
 Simulador 3D interativo do reboque de monitoramento da XPTO inc.: painéis solares dobráveis, mastro telescópico e a
-cabeça de câmeras com **PTZ** (speed dome 32×), **4 Bullets** (360°) e **2 LPR** (leitura de placas Mercosul com IR).
+cabeça de câmeras como a do equipamento real: uma viga preta com **2 PTZ** (speed domes 32×, uma rastreia e outra varre),
+uma **Bullet** de visão geral, **2 LPR** (leitura de placas Mercosul) e **2 iluminadores IR**.
 
 - `public/index.html`: a página pronta, offline, um arquivo só (é o que a Vercel publica).
 - Sem mexer, a página faz um passeio automático; um clique devolve o controle.
