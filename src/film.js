@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import {runSim} from 'teardown-kit/runtime.js';
 import {createConsole, DISPLAY, FEED} from './console.js';
-import {headAt, phaseOf, SEQ, stateAt, statusOf} from './kin.js';
+import {captionOf, headAt, phaseOf, SEQ, stateAt, statusOf} from './kin.js';
 import {createXptoStage} from './stage.js';
 
 // cada vista fica no ar enquanto algo acontece nela: a implantação, o carro 1 e a leitura da placa, o pedestre e o
@@ -202,6 +202,17 @@ export function makeLabels(st) {
   };
 }
 
+// nas cenas de apresentação do passeio a legenda fala do que a câmera mostra; no resto, do que a torre está fazendo
+const SHOW = {
+  ptz: 'A cabeça de câmeras: 2 PTZ, Bullet, 2 LPR e iluminadores IR.',
+  cabeca: 'Vista explodida: cada equipamento da cabeça de câmeras.',
+};
+function captionFor(s) {
+  if (s.tour && SHOW[s.view] && s.since !== undefined) return {caption: SHOW[s.view], captionAge: s.since - BLEND * 0.6};
+  const c = captionOf(s.m);
+  return {caption: c.text, captionAge: s.tau - c.t0};
+}
+
 /** Os dados do console para um quadro. s: {seq, tau, m, panRate, view, display, night, labels, cursor, plateBox, ...}. */
 export function makeConsoleFrame(ui, st) {
   const labels = makeLabels(st);
@@ -219,6 +230,7 @@ export function makeConsoleFrame(ui, st) {
       from: S.from,
       to: S.to,
       phase: phaseOf(s.seq, s.tau),
+      ...captionFor(s),
       view: s.view,
       display: s.display,
       night: s.night,
@@ -258,7 +270,7 @@ export function makeFilm() {
         const night = easedDisplay('night', t, 0.9);
         const out = st.frame(m, {...cam, az: cam.az * D2R, el: cam.el * D2R}, {explode: easedDisplay('exploded', t, 0.8), cover: easedDisplay('cover', t), night, feeds: {ptz: FEED.ptz, lpr: FEED.lpr, lprK: lprShown(m)}});
         const [vt0, view] = viewAt(t);
-        frame({seq, tau, m, panRate, view, display: disp, night, near: isNear(view), labels: easedDisplay('labels', t, 0.6) * ss(vt0 + BLEND, vt0 + BLEND + 0.6, t), cursor: cursorAt(t), plateBox: out.plateBox, faceBox: out.faceBox});
+        frame({seq, tau, m, panRate, view, display: disp, night, near: isNear(view), labels: easedDisplay('labels', t, 0.6) * ss(vt0 + BLEND, vt0 + BLEND + 0.6, t), cursor: cursorAt(t), plateBox: out.plateBox, faceBox: out.faceBox, tour: true, since: t - vt0});
         return {};
       },
     };

@@ -284,6 +284,51 @@ export function statusOf(s) {
   return ['Vigilância', '2 PTZ EM VARREDURA', 'ok'];
 }
 
+/** A legenda da barra de operação: uma frase por cena, em português normal, e o instante (tau) em que ela começou,
+ *  para a entrada suave. Os números (placa, confiança) vêm do mesmo modelo dos painéis. */
+export function captionOf(s) {
+  const {seq, tau} = s;
+  const seg = (list) => {
+    let cur = list[0];
+    for (const x of list) if (tau >= x[0]) cur = x;
+    return {text: cur[1], t0: cur[0]};
+  };
+  if (seq === 'deploy')
+    return seg([
+      [0, 'Em modo transporte: painéis empilhados e mastro recolhido.'],
+      [DEPLOY_T.mast[0], 'O mastro telescópico leva a cabeça de câmeras a 5,65 m.'],
+      [DEPLOY_T.top[0], 'O primeiro painel solar abre, como a página de um livro.'],
+      [DEPLOY_T.low[0], 'Depois o segundo: 1,8 kWp de energia solar.'],
+      [DEPLOY_T.power[0], 'Câmeras ligadas: a torre entra em operação.'],
+    ]);
+  if (seq === 'stow')
+    return seg([
+      [0, 'Câmeras desligadas: fim da operação.'],
+      [STOW_T.low[0], 'Os painéis fecham, um de cada vez, sobre o do meio.'],
+      [STOW_T.mast[0], 'O mastro desce e a torre volta ao modo transporte.'],
+      [STOW_T.mast[1], 'Pronta para ser rebocada até o próximo ponto.'],
+    ]);
+  const h = s.h;
+  const firstTrack = (id) => TT.find((x) => x.id === id)?.since ?? 99;
+  const r1 = readInfo(0, h);
+  const r2 = readInfo(1, h);
+  const alert = matchInfo(h) ?? 99;
+  const pct = (r) => Math.round(confOf(r.pixels, r.vert) * 100);
+  return seg([
+    [0, 'Em operação: as duas PTZ vigiam a rua.'],
+    [firstTrack('c0'), 'A PTZ trava no veículo e o acompanha desde 70 metros.'],
+    [r1.t, `A LPR 1 leu a placa ${CARS[0].plate}: ${pct(r1)}% de confiança.`],
+    [r1.t + 3.6, 'Placa registrada. A PTZ volta a varrer a rua.'],
+    [PERSON.t0, 'Um pedestre se aproxima pela calçada.'],
+    [PERSON.lock, 'A PTZ trava no pedestre e dá zoom no rosto.'],
+    [alert, 'Mandado de prisão em aberto: central e viatura avisadas.'],
+    [alert + 5.5, 'A ocorrência fica registrada, com imagem e horário.'],
+    [firstTrack('c1'), 'À noite, os iluminadores infravermelhos mantêm a imagem.'],
+    [r2.t, `A LPR 2 leu a placa ${CARS[1].plate} no escuro: ${pct(r2)}%.`],
+    [r2.t + 4, 'A torre segue vigiando, 24 horas, com energia solar.'],
+  ]);
+}
+
 /** A fase escrita na barra de operação. */
 export function phaseOf(seq, tau) {
   const at = (T, order, names) => names[Math.max(0, order.findLastIndex((k) => tau >= T[k][0] - 0.2))];

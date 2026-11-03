@@ -190,9 +190,10 @@ export function createConsole(app) {
   // ------------------------------------------------------------ 08 operação
   panel(430, 752, 740, 108, 'OPERAÇÃO', '08');
   btn.play = add(`<div class="bt on" style="left:445px;top:795px;width:44px;height:44px;font-size:15px"></div>`);
-  const opFrom = add(`<div class="sm" style="position:absolute;left:506px;top:791px"></div>`);
-  const opPhase = add(`<div class="mo" style="position:absolute;left:506px;width:500px;top:790px;text-align:center;font-size:9.6px;font-weight:700;letter-spacing:1.6px;color:${C.acInk}"></div>`);
-  const opTo = add(`<div class="sm" style="position:absolute;right:${1600 - 1010}px;top:791px"></div>`);
+  // a legenda: uma frase por cena, no lugar do texto técnico; de onde a sequência sai e aonde chega, pequeno embaixo
+  const opPhase = add(`<div style="position:absolute;left:506px;width:506px;top:781px;text-align:center;font:600 14px/1.2 Inter,sans-serif;letter-spacing:-.1px;color:${C.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>`);
+  const opFrom = add(`<div class="sm" style="position:absolute;left:506px;top:804px;font-size:7.8px"></div>`);
+  const opTo = add(`<div class="sm" style="position:absolute;right:${1600 - 1012}px;top:804px;font-size:7.8px"></div>`);
   const TL = {x: 508, w: 504};
   add(`<div style="position:absolute;left:${TL.x}px;top:820px;width:${TL.w}px;height:3px;background:rgba(10,10,74,.09);border-radius:2px"></div>`);
   const tlFill = add(`<div style="position:absolute;left:${TL.x}px;top:820px;height:3px;background:${C.ac};border-radius:2px"></div>`);
@@ -353,7 +354,11 @@ export function createConsole(app) {
       btn.play.innerHTML = s.paused ? '▶' : '❚❚';
       opFrom.textContent = s.from;
       opTo.textContent = s.to;
-      opPhase.textContent = s.phase;
+      if (opPhase.textContent !== s.caption) opPhase.textContent = s.caption;
+      // entra suave: sobe 4 px e aparece em 0,5 s a cada frase nova
+      const ck = Math.max(0, Math.min(1, s.captionAge / 0.5));
+      opPhase.style.opacity = (ck * ck * (3 - 2 * ck)).toFixed(3);
+      opPhase.style.transform = `translateY(${((1 - ck) * 4).toFixed(1)}px)`;
       const kx = TL.x + s.prog * TL.w;
       tlFill.style.width = `${(s.prog * TL.w).toFixed(1)}px`;
       tlKnob.style.left = `${kx.toFixed(1)}px`;
