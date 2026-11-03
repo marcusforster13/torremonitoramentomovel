@@ -224,6 +224,85 @@ export async function buildRig(renderer) {
     });
   };
 
+  // as rodas: no modelo eram cilindros lisos com a foto como textura; aqui viram rodas de reboque como as da foto,
+  // pneu de borracha com banda de rodagem e cravos, aro de aço preto com furos, cubo e 6 porcas
+  {
+    root.updateMatrixWorld(true);
+    const wm = (geo, mat, f) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      f?.(m);
+      return m;
+    };
+    const old = ['Cylinder006', 'Cylinder009', 'Cylinder010', 'Cylinder011'].map((n) => model.getObjectByName(n));
+    const rubber = new THREE.MeshStandardMaterial({color: '#141516', roughness: 0.92, metalness: 0, side: THREE.DoubleSide});
+    const rimMat = new THREE.MeshStandardMaterial({color: '#111214', roughness: 0.55, metalness: 0.3, envMapIntensity: 0.35, side: THREE.DoubleSide});
+    const nutMat = new THREE.MeshStandardMaterial({color: '#b9bec5', roughness: 0.3, metalness: 0.9});
+    const holeMat = new THREE.MeshBasicMaterial({color: '#050506'});
+    const R = 0.345;
+    const W = 0.19;
+    // o perfil do pneu (raio, largura) girado em torno do eixo: ombro arredondado, flanco abaulado
+    const prof = [];
+    const rIn = 0.205;
+    prof.push(new THREE.Vector2(rIn, -W / 2 + 0.01));
+    for (let i = 0; i <= 8; i++) {
+      const a = (i / 8) * (Math.PI / 2);
+      prof.push(new THREE.Vector2(R - 0.035 + Math.sin(a) * 0.035, -W / 2 + 0.035 - Math.cos(a) * 0.035));
+    }
+    for (let i = 0; i <= 8; i++) {
+      const a = (i / 8) * (Math.PI / 2);
+      prof.push(new THREE.Vector2(R - 0.035 + Math.cos(a) * 0.035, W / 2 - 0.035 + Math.sin(a) * 0.035));
+    }
+    prof.push(new THREE.Vector2(rIn, W / 2 - 0.01));
+    const tireGeo = new THREE.LatheGeometry(prof, 64);
+    tireGeo.rotateX(Math.PI / 2);
+    const lugGeo = new THREE.BoxGeometry(0.018, 0.005, W * 0.3);
+    const rimGeo = new THREE.LatheGeometry(
+      [[0.0, 0.05], [0.07, 0.05], [0.09, 0.03], [0.15, 0.03], [0.17, 0.0], [0.205, -0.02], [0.205, -0.08], [0.19, -0.085]].map(([r, z]) => new THREE.Vector2(r, z)),
+      48,
+    );
+    rimGeo.rotateX(Math.PI / 2);
+    for (const o of old) {
+      const b = new THREE.Box3().setFromObject(o);
+      const c = b.getCenter(new V3());
+      // o lado de fora é o de |z| maior
+      const out = Math.sign(c.z);
+      o.visible = false;
+      const w = new THREE.Group();
+      w.position.set(c.x, R, (out > 0 ? b.max.z : b.min.z) - out * (W / 2 + 0.01));
+      w.add(wm(tireGeo, rubber));
+      // cravos da banda de rodagem, em dois carreiros desencontrados
+      for (let i = 0; i < 56; i++) {
+        const a = (i / 56) * Math.PI * 2;
+        for (const side of [-1, 1]) {
+          w.add(wm(lugGeo, rubber, (m) => {
+            m.position.set(Math.cos(a + (side > 0 ? Math.PI / 56 : 0)) * (R + 0.002), Math.sin(a + (side > 0 ? Math.PI / 56 : 0)) * (R + 0.002), side * W * 0.22);
+            m.rotation.z = a + (side > 0 ? Math.PI / 56 : 0);
+          }));
+        }
+      }
+      // o aro virado para fora, os furos de ventilação, o cubo e as porcas
+      const rim = new THREE.Group();
+      rim.scale.z = out;
+      rim.add(wm(rimGeo, rimMat));
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+        rim.add(wm(new THREE.CircleGeometry(0.022, 16), holeMat, (m) => m.position.set(Math.cos(a) * 0.125, Math.sin(a) * 0.125, 0.031)));
+        rim.add(wm(new THREE.CylinderGeometry(0.011, 0.011, 0.02, 6), nutMat, (m) => {
+          m.rotation.x = Math.PI / 2;
+          m.position.set(Math.cos(a - Math.PI / 6) * 0.062, Math.sin(a - Math.PI / 6) * 0.062, 0.058);
+        }));
+      }
+      rim.add(wm(new THREE.CylinderGeometry(0.038, 0.042, 0.03, 24), nutMat, (m) => {
+        m.rotation.x = Math.PI / 2;
+        m.position.z = 0.062;
+      }));
+      w.add(rim);
+      root.add(w);
+    }
+  }
+
   // a placa XPTO nos dois lados da caixa do reboque, colada na lataria como adesivo, 2 mm à frente da chapa (só o
   // bastante para a textura não piscar). Tamanho da placa da foto do equipamento (0,56 x 0,22 m). Os pontos foram
   // achados com um mapa de relevo das laterais a cada 2 cm (probe3): o retângulo inteiro sobre chapa lisa, longe das
