@@ -19,7 +19,7 @@ html,body{overflow:auto!important;height:auto!important;background:#e9eef2;-webk
 .mx-tag{position:absolute;font:700 8.5px 'JetBrains Mono',monospace;letter-spacing:.8px;color:#fff;background:rgba(10,10,74,.6);padding:2px 6px;border-radius:999px;white-space:nowrap;pointer-events:none;max-width:calc(50% - 20px);overflow:hidden;text-overflow:ellipsis}
 .mx-off{position:absolute;display:flex;align-items:center;justify-content:center;background:#0e1430;color:#7d8bb3;font:600 9px 'JetBrains Mono',monospace;letter-spacing:2px;border-radius:6px;pointer-events:none}
 .mx-night{position:absolute;background:#808080;mix-blend-mode:saturation;opacity:0;pointer-events:none;border-radius:6px}
-.mx-alert{position:absolute;left:10px;right:10px;top:10px;padding:9px 12px;border-radius:14px;${GLASS};background:linear-gradient(160deg,rgba(255,236,236,.9),rgba(255,214,214,.7));box-shadow:inset 0 1px 0 #fff,0 0 0 1.5px rgba(229,72,77,.55),0 10px 24px rgba(229,72,77,.25);opacity:0;pointer-events:none}
+.mx-alert{position:absolute;left:10px;right:10px;top:46px;padding:9px 12px;border-radius:14px;${GLASS};background:linear-gradient(160deg,rgba(255,236,236,.9),rgba(255,214,214,.7));box-shadow:inset 0 1px 0 #fff,0 0 0 1.5px rgba(229,72,77,.55),0 10px 24px rgba(229,72,77,.25);opacity:0;pointer-events:none}
 .mx-alert b{display:block;font:800 13px Inter,sans-serif;color:#b4232a}
 .mx-alert span{display:block;font:600 9px 'JetBrains Mono',monospace;letter-spacing:.6px;color:#8a4b4e;margin-top:3px}
 .mx-chip{position:absolute;left:50%;top:10px;transform:translateX(-50%);display:flex;align-items:center;gap:7px;height:26px;padding:0 12px;border-radius:999px;${GLASS};font:700 9px 'JetBrains Mono',monospace;letter-spacing:1px;white-space:nowrap;cursor:pointer}
@@ -61,6 +61,8 @@ html,body{overflow:auto!important;height:auto!important;background:#e9eef2;-webk
 .mx-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
 .mx-pills button{height:36px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.85);background:linear-gradient(180deg,rgba(255,255,255,.8),rgba(255,255,255,.45));box-shadow:inset 0 1px 0 #fff,0 2px 6px rgba(20,40,90,.1);font:700 10px 'JetBrains Mono',monospace;letter-spacing:1px;color:${C.ink};cursor:pointer}
 .mx-pills button.on{background:linear-gradient(180deg,rgba(40,44,120,.95),rgba(10,10,74,.9));color:#fff;border-color:rgba(255,255,255,.35)}
+.mx-call{position:absolute;padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.88);box-shadow:0 0 0 1px rgba(10,10,74,.12),0 2px 6px rgba(20,40,90,.12);font:700 8px 'JetBrains Mono',monospace;letter-spacing:.3px;color:${C.ink};white-space:nowrap;pointer-events:none}
+.mx-call i{display:inline-block;width:5px;height:5px;margin-right:5px;background:${C.ac};vertical-align:1px}
 .mx-foot{margin:14px 16px 24px;font:500 8.5px/1.6 'JetBrains Mono',monospace;letter-spacing:1px;color:${C.mute};text-transform:uppercase}
 .lite .mx-cap,.lite .mx-pane,.lite .mx-chip,.lite .mx-alert{-webkit-backdrop-filter:none;backdrop-filter:none}
 `;
@@ -98,6 +100,8 @@ export function createMobileConsole(app, canvas) {
   const faceBox = add(stage, `<div style="position:absolute;border:1.5px solid ${C.rec};display:none;pointer-events:none"></div>`);
   const plateBox = add(stage, `<div style="position:absolute;border:1.5px solid ${C.ok};display:none;pointer-events:none"></div>`);
   const alert = add(stage, `<div class="mx-alert"><b>⚠ Mandado de prisão em aberto</b><span>RECONHECIMENTO FACIAL · ${Math.round(WARRANT.sim * 100)}% · ${WARRANT.base} · DADOS FICTÍCIOS</span></div>`);
+  const callSvg = add(stage, `<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none"></svg>`);
+  const callG = add(stage, `<div style="position:absolute;inset:0;pointer-events:none"></div>`);
   const chip = add(stage, `<div class="mx-chip"></div>`);
 
   // ------------------------------------------------------------ a legenda, o play e o progresso
@@ -184,6 +188,7 @@ export function createMobileConsole(app, canvas) {
 
   // ------------------------------------------------------------ medidas: a cena e a faixa das imagens ao vivo
   const feeds = {ptz: {x: 0, y: 0, w: 0, h: 0}, lpr: {x: 0, y: 0, w: 0, h: 0}};
+  const labelArea = {x0: 4, x1: 386, y0: 44, y1: 300, mid: 195, left: 6, right: 250, rightNear: 250, w: 134, gap: 24};
   const layout = () => {
     const W = stage.clientWidth || innerWidth;
     // as telinhas: metade da largura em pé, no máximo 210 px (deitado elas ficam nos cantos)
@@ -199,6 +204,7 @@ export function createMobileConsole(app, canvas) {
       for (const n of [a, b, c]) Object.assign(n.style, {left: `${f.x}px`, top: `${f.y}px`, width: `${f.w}px`, height: `${f.h}px`});
       Object.assign(t.style, {left: `${f.x + 5}px`, top: `${f.y + 5}px`});
     }
+    Object.assign(labelArea, {x1: W - 4, y1: H - fh - 16, mid: W / 2, right: W - 140, rightNear: W - 140});
     return {W, H, strip: fh + 12};
   };
   const clock = (s) => `00:${String(Math.floor(s)).padStart(2, '0')}`;
@@ -224,6 +230,7 @@ export function createMobileConsole(app, canvas) {
     chip,
     feeds,
     layout,
+    labelArea,
     spots: new Proxy({}, {get: () => [0, 0]}),
     onSeek: (f) => (seekCb = f),
     update(s) {
@@ -248,6 +255,20 @@ export function createMobileConsole(app, canvas) {
       box(plateBox, s.plateBox, look?.readable ? C.ok : C.warn, feeds.lpr);
       const a = m.alert;
       alert.style.opacity = (a ? Math.min(1, a.age / 0.35) * (1 - Math.max(0, Math.min(1, (a.age - 5.4) / 0.6))) : 0).toFixed(3);
+      // rótulos: só o nome, numa pílula na borda, com uma linha fina até a peça
+      let lh = '';
+      let ch = '';
+      for (const c of s.callouts) {
+        if (c.o < 0.02 || !c.at) continue;
+        const [ax, ay] = c.at;
+        const [lx, ly] = c.label;
+        const right = lx > ax;
+        const ex = right ? lx : lx + 134;
+        lh += `<polyline points="${ax.toFixed(1)},${ay.toFixed(1)} ${ex.toFixed(1)},${(ly + 8).toFixed(1)}" fill="none" stroke="${C.acInk}" stroke-width=".9" opacity="${c.o.toFixed(2)}"/><circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="2.2" fill="${C.acInk}" opacity="${c.o.toFixed(2)}"/>`;
+        ch += `<div class="mx-call" style="${right ? 'left' : 'left'}:${lx.toFixed(1)}px;top:${ly.toFixed(1)}px;opacity:${c.o.toFixed(2)};max-width:134px;overflow:hidden;text-overflow:ellipsis"><i></i>${c.name}</div>`;
+      }
+      callSvg.innerHTML = lh;
+      callG.innerHTML = ch;
       // legenda e progresso
       if (txt.textContent !== s.caption) txt.textContent = s.caption;
       const ck = Math.max(0, Math.min(1, s.captionAge / 0.5));

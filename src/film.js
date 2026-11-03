@@ -178,26 +178,29 @@ const FAR = [
   {name: 'BANCO DE BATERIAS', sub: '4 × 200 Ah · 9,6 kWh', at: 'battery'},
   {name: 'PEDESTRE', sub: 'RECONHECIMENTO FACIAL PELA PTZ', at: 'person', person: true},
 ];
-export function makeLabels(st) {
+// area: onde os rótulos podem ficar (a mesa usa o centro do console 1600 x 900; o celular passa a sua cena)
+const DESK_AREA = {x0: 330, x1: 1290, y0: 110, y1: 740, mid: 800, left: 340, right: 1078, rightNear: 1104, w: 200, gap: 36};
+export function makeLabels(st, area = DESK_AREA) {
   return (near, o) => {
     if (o < 0.02) return [];
+    const A = typeof area === 'function' ? area() : area;
     const pts = (near ? NEAR : FAR)
       .filter((p) => !p.person || st.rig.ped.g.visible)
       .map((p) => ({p, at: st.project(st.rig.anchors[p.at]())}))
-      .filter((x) => x.at && x.at[0] > 330 && x.at[0] < 1290 && x.at[1] > 110 && x.at[1] < 740);
-    const L = pts.filter((x) => x.at[0] < 800).sort((a, b) => a.at[1] - b.at[1]);
-    const R = pts.filter((x) => x.at[0] >= 800).sort((a, b) => a.at[1] - b.at[1]);
+      .filter((x) => x.at && x.at[0] > A.x0 && x.at[0] < A.x1 && x.at[1] > A.y0 && x.at[1] < A.y1);
+    const L = pts.filter((x) => x.at[0] < A.mid).sort((a, b) => a.at[1] - b.at[1]);
+    const R = pts.filter((x) => x.at[0] >= A.mid).sort((a, b) => a.at[1] - b.at[1]);
     const out = [];
     const stack = (col, x, w) => {
-      let y = 130;
+      let y = A.y0 + 20;
       for (const c of col) {
-        y = Math.max(y, Math.min(700, c.at[1] - 10));
+        y = Math.max(y, Math.min(A.y1 - 40, c.at[1] - 10));
         out.push({name: c.p.name, sub: c.p.sub, at: c.at, label: [x, y], w, o});
-        y += 36;
+        y += A.gap;
       }
     };
-    stack(L, 340, 200);
-    stack(R, near ? 1104 : 1078, 200);
+    stack(L, A.left, A.w);
+    stack(R, near ? A.rightNear : A.right, A.w);
     return out;
   };
 }
@@ -215,7 +218,7 @@ function captionFor(s) {
 
 /** Os dados do console para um quadro. s: {seq, tau, m, panRate, view, display, night, labels, cursor, plateBox, ...}. */
 export function makeConsoleFrame(ui, st) {
-  const labels = makeLabels(st);
+  const labels = makeLabels(st, ui.labelArea);
   return (s) => {
     const S = SEQ[s.seq];
     const m = s.m;

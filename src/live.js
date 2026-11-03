@@ -81,7 +81,7 @@ export async function runLive() {
       // em pé a faixa das telinhas fica embaixo da cena e a torre sobe metade dela; deitado as telinhas ficam nos
       // cantos e a cena é baixa, então a câmera recua para a torre caber inteira
       const land = innerWidth > innerHeight;
-      mob.strip = land ? strip * 0.2 : strip;
+      mob.strip = land ? strip * 0.2 : strip - 44;
       mob.k = land ? 1.3 : clamp(Math.pow(1.78 / (w / (h - strip)), 0.3), 1, 1.5);
       st.resize(w, h, clamp(devicePixelRatio || 1, 0.75, TIERS[tier].pr));
       return;
@@ -361,7 +361,7 @@ export async function runLive() {
       cursor = {x: -99, y: -99, press: false, ring: rk, ringX: ring.x, ringY: ring.y};
     }
     if (mobile) {
-      tgt = {...tgt, d: tgt.d * mob.k, sy: (tgt.sy ?? 0) * 0.5 - mob.strip / 2, sx: 0};
+      tgt = {...tgt, d: tgt.d * mob.k * (isNear(view) ? 1.6 : 1), sy: (tgt.sy ?? 0) * 0.5 - mob.strip / 2, sx: 0};
     }
     const {m, panRate} = mechAt(seq, tau);
     const k = 1 - Math.exp(-dt / (AP.on ? 0.25 : 0.5));
@@ -387,7 +387,7 @@ export async function runLive() {
     requestAnimationFrame(frame);
   };
   warmComposer(st.renderer, st.composer, st.scene, st.camera).then(() => requestAnimationFrame(frame));
-  window.LIVE = {st, cam, mobile, startTour, takeOver, get tier() {
+  window.LIVE = {st, cam, mobile, startTour, takeOver, tourAt: (t) => (AP.t0 = T - t), get tier() {
     return tier;
   }, get T() {
     return T;
