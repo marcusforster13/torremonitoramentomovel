@@ -87,6 +87,7 @@ export async function buildRig(renderer) {
   fill.position.set(axis.x, fillY, axis.z);
   fill.castShadow = true;
   fill.receiveShadow = true;
+  fill.userData.trailer = true;
   root.add(fill);
   // e, em cima, os suportes da cabeça antiga do modelo saem: o tubo de cima termina 0,9 m abaixo da cabeça nova, onde
   // começa o tubo dela (o plano acompanha a altura da cabeça)
@@ -299,6 +300,7 @@ export async function buildRig(renderer) {
         m.position.z = 0.062;
       }));
       w.add(rim);
+      w.userData.trailer = true;
       root.add(w);
     }
   }

@@ -36,7 +36,7 @@ runSim({duration: 1, hud: {enabled: false}, director: {enabled: false}}, async (
   };
   const ped = rig.ped.g;
   const carGs = rig.cars.map((c) => c.g);
-  const trailerParts = [rig.trailer, ...rig.root.children.filter((c) => c.isMesh && c.material?.map && c.geometry.type === 'PlaneGeometry')];
+  const trailerParts = [rig.trailer, ...rig.root.children.filter((c) => c.userData.trailer || (c.isMesh && c.material?.map && c.geometry.type === 'PlaneGeometry'))];
   window.OUT = await Promise.all([
     one('reboque_xpto.glb', trailerParts),
     one('cabeca_cameras.glb', [rig.head]),
