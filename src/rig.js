@@ -181,20 +181,25 @@ export async function buildRig(renderer) {
     });
   };
 
-  // a placa XPTO nos dois lados da caixa do reboque
+  // a placa XPTO nos dois lados da caixa do reboque, colada na lataria como adesivo, 2 mm à frente da chapa (só o
+  // bastante para a textura não piscar). Tamanho da placa da foto do equipamento (0,56 x 0,22 m). Os pontos foram
+  // achados com um mapa de relevo das laterais a cada 2 cm (probe3): o retângulo inteiro sobre chapa lisa, longe das
+  // maçanetas e das dobras das portas.
   {
-    const body = model.getObjectByName('Cube051');
-    root.updateMatrixWorld(true);
-    const wb = new THREE.Box3().setFromObject(body);
     const tex = new THREE.CanvasTexture(trailerPlate(logo));
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
-    const mat = new THREE.MeshStandardMaterial({map: tex, roughness: 0.4, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -2});
-    for (const s of [1, -1]) {
-      const p = new THREE.Mesh(new THREE.PlaneGeometry(0.82, 0.32), mat);
-      p.position.set((wb.min.x + wb.max.x) / 2 - 0.25, wb.min.y + (wb.max.y - wb.min.y) * 0.62, s > 0 ? wb.max.z + 0.004 : wb.min.z - 0.004);
-      p.rotation.y = s > 0 ? 0 : Math.PI;
-      root.add(p);
+    const mat = new THREE.MeshStandardMaterial({map: tex, roughness: 0.4, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1});
+    const SPOTS = [
+      {x: -1.3, y: 1.25, z: 0.6447, s: 1},
+      {x: -1.42, y: 1.25, z: -0.6446, s: -1},
+    ];
+    for (const p of SPOTS) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.22), mat);
+      m.position.set(p.x, p.y, p.z + p.s * 0.002);
+      m.rotation.y = p.s > 0 ? 0 : Math.PI;
+      m.receiveShadow = true;
+      root.add(m);
     }
   }
 
