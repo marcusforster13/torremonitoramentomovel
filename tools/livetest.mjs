@@ -16,17 +16,19 @@ console.log('fps', fps, 'tier', await p.evaluate(() => window.LIVE.tier));
 const click = async (txt) => p.locator('.bt', {hasText: new RegExp('^' + txt + '$')}).first().click();
 await click('MONITORAR');
 await click('LPR');
+// espera o pedestre e o alerta
+
 await click('COBERTURA');
 await p.waitForTimeout(3600);
 await p.screenshot({path: 'teardown-out/live-2.png'});
-await click('CABEÇA');
+await click('CALÇADA');
 await click('EXPLODIDA');
 await click('RÓTULOS');
 await p.mouse.move(800, 400);
 await p.mouse.down();
 await p.mouse.move(700, 380, {steps: 8});
 await p.mouse.up();
-await p.waitForTimeout(2500);
+await p.waitForTimeout(5500);
 await p.screenshot({path: 'teardown-out/live-3.png'});
 console.log('errors', errs);
 await b.close();

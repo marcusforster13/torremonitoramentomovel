@@ -1,74 +1,48 @@
-// A marca XPTO inc.: as letras geométricas do logo como caminhos SVG (100 de altura), um SVG para o console e
-// texturas em canvas para o reboque e as câmeras. E a placa Mercosul dos carros.
+// A marca XPTO inc.: o logo original (src/logo.js) no console, na placa do reboque e nas etiquetas das câmeras. E a
+// placa Mercosul dos carros.
+import {LOGO_ASPECT, LOGO_URL} from './logo.js';
+
+/** O logo original carregado como imagem, para desenhar em canvas. */
+export async function loadLogo() {
+  const img = new Image();
+  img.src = LOGO_URL;
+  await img.decode();
+  return img;
+}
+/** O logo original como <img> para o HTML, largura w. */
+export const logoImg = (w) => `<img src="${LOGO_URL}" width="${w}" height="${(w / LOGO_ASPECT).toFixed(1)}" alt="XPTO inc." style="display:block">`;
 export const BRAND = {cyan: '#00d4e6', cyanInk: '#009fb3', navy: '#0a0a4a'};
 
-// X, P, T, O: cada parte é preenchida com evenodd (os anéis do P e do O); juntas fazem a palavra
-export const LETTERS = [
-  'M0 0h31l89 100H89z',
-  'M89 0h31L31 100H0z',
-  'M134 0h24v100h-24z',
-  'M134 0H203A31 31 0 0 1 203 62H134ZM158 24H203A7 7 0 0 1 203 38H158Z',
-  'M246 0h104v24h-40v76h-24v-76h-40z',
-  'M414 0H464A50 50 0 0 1 464 100H414A50 50 0 0 1 414 0ZM414 24H464A26 26 0 0 1 464 76H414A26 26 0 0 1 414 24Z',
-];
-
-/** O logo em SVG, largura w; light = versão clara para fundo escuro. */
-export function logoSvg(w, {light = false, inc = true} = {}) {
-  const h = (w * (inc ? 150 : 100)) / 514;
-  const ink = light ? '#ffffff' : BRAND.navy;
-  const letters = LETTERS.map((d) => `<path d="${d}" fill="${light ? '#ffffff' : BRAND.cyan}" fill-rule="evenodd"/>`).join('');
-  const tail = inc
-    ? `<rect x="0" y="126" width="372" height="8" rx="4" fill="${ink}"/><text x="390" y="146" font-family="Inter" font-weight="800" font-size="46" letter-spacing="1" fill="${ink}">inc.</text>`
-    : '';
-  return `<svg width="${w.toFixed(1)}" height="${h.toFixed(1)}" viewBox="0 0 514 ${inc ? 150 : 100}">${letters}${tail}</svg>`;
-}
-
-/** Placa do reboque: azul-marinho, XPTO branco com o "inc." e a linha, a frase de baixo. */
-export function trailerPlate() {
+/** Placa do reboque: branca com o logo original e a frase, moldura azul-marinho. */
+export function trailerPlate(logo) {
   const c = document.createElement('canvas');
   c.width = 1024;
   c.height = 400;
   const g = c.getContext('2d');
-  g.fillStyle = '#16205e';
+  g.fillStyle = '#ffffff';
   g.fillRect(0, 0, 1024, 400);
-  g.strokeStyle = 'rgba(255,255,255,.35)';
-  g.lineWidth = 6;
-  g.strokeRect(10, 10, 1004, 380);
-  g.save();
-  g.translate(150, 70);
-  g.scale(1.42, 1.42);
-  g.fillStyle = '#ffffff';
-  for (const d of LETTERS) g.fill(new Path2D(d), 'evenodd');
-  g.restore();
-  g.fillStyle = BRAND.cyan;
-  g.fillRect(150, 238, 520, 10);
-  g.fillStyle = '#ffffff';
-  g.font = '800 64px Inter, sans-serif';
-  g.fillText('inc.', 700, 262);
-  g.font = '600 34px Inter, sans-serif';
-  g.fillStyle = 'rgba(255,255,255,.8)';
-  g.fillText('O FUTURO DA SEGURANÇA', 152, 330);
+  g.strokeStyle = BRAND.navy;
+  g.lineWidth = 10;
+  g.strokeRect(5, 5, 1014, 390);
+  const w = 820;
+  g.drawImage(logo, (1024 - w) / 2, 52, w, w / LOGO_ASPECT);
+  g.fillStyle = BRAND.navy;
+  g.font = '700 38px Inter, sans-serif';
+  g.textAlign = 'center';
+  g.fillText('O FUTURO DA SEGURANÇA', 512, 340);
   return c;
 }
 
-/** Etiqueta pequena para as câmeras: logo ciano sobre branco. */
-export function camBadge() {
+/** Etiqueta pequena para as câmeras: o logo original sobre branco. */
+export function camBadge(logo) {
   const c = document.createElement('canvas');
   c.width = 512;
   c.height = 160;
   const g = c.getContext('2d');
   g.fillStyle = '#ffffff';
   g.fillRect(0, 0, 512, 160);
-  g.save();
-  g.translate(40, 30);
-  g.scale(0.84, 0.84);
-  g.fillStyle = BRAND.cyan;
-  for (const d of LETTERS) g.fill(new Path2D(d), 'evenodd');
-  g.restore();
-  g.fillStyle = BRAND.navy;
-  g.fillRect(40, 124, 300, 7);
-  g.font = '800 40px Inter, sans-serif';
-  g.fillText('inc.', 356, 140);
+  const w = 460;
+  g.drawImage(logo, 26, (160 - w / LOGO_ASPECT) / 2, w, w / LOGO_ASPECT);
   return c;
 }
 

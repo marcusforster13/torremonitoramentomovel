@@ -10,26 +10,28 @@ import {createXptoStage} from './stage.js';
 export const SCRIPT = [
   {t: 0, seq: 'deploy', view: 'hero'},
   {t: 1.6, display: 'labels'},
-  {t: 6.0, view: 'lateral'},
-  {t: 11.6, display: 'labels'},
-  {t: 12.4, seq: 'patrol', view: 'rua'},
-  {t: 13.2, display: 'cover'},
-  {t: 14.6, view: 'lpr'},
+  {t: 3.4, view: 'lateral'},
+  {t: 6.4, view: 'hero'},
+  {t: 12.0, display: 'labels'},
+  {t: 13.4, seq: 'patrol', view: 'rua'},
+  {t: 14.2, display: 'cover'},
+  {t: 15.2, view: 'lpr'},
   {t: 18.2, view: 'ptz'},
-  {t: 18.8, display: 'labels'},
-  {t: 21.2, display: 'labels'},
-  {t: 21.6, view: 'cabeca'},
-  {t: 22.2, display: 'exploded'},
+  {t: 18.6, display: 'labels'},
+  {t: 20.0, display: 'labels'},
+  {t: 20.2, view: 'calcada'},
+  {t: 24.0, view: 'cabeca'},
   {t: 24.6, display: 'exploded'},
-  {t: 25.0, view: 'planta'},
-  {t: 25.4, display: 'night'},
-  {t: 28.4, display: 'night'},
-  {t: 28.8, display: 'cover'},
-  {t: 29.2, view: 'hero'},
-  {t: 29.6, display: 'orbit'},
-  {t: 30.0, seq: 'stow'},
+  {t: 26.8, display: 'exploded'},
+  {t: 27.2, view: 'planta'},
+  {t: 27.6, display: 'night'},
+  {t: 30.6, display: 'night'},
+  {t: 31.0, display: 'cover'},
+  {t: 31.4, view: 'hero'},
+  {t: 31.8, display: 'orbit'},
+  {t: 34.4, seq: 'stow'},
 ];
-export const DURATION = 41;
+export const DURATION = 46;
 export const DEFAULTS = {duration: DURATION, fps: 60, theme: 'light', hud: {enabled: false, title: 'xpto', subtitle: ''}, director: {enabled: false}, watermark: ''};
 const D2R = Math.PI / 180;
 const smoother = (x) => {
@@ -64,13 +66,14 @@ export const mechAt = (seq, tau) => {
 
 // ------------------------------------------------------------ vistas: {tx, ty, tz, az, el, d (graus, m), sx, sy, head}
 export const VIEW_FN = {
-  hero: (u) => ({tx: -1.3, ty: 2.1, tz: 1.0, az: 38 + 2.2 * u, el: 15, d: 15.5, sx: 10, sy: -24, head: 0}),
-  lateral: (u) => ({tx: -1.4, ty: 2.5, tz: 0.4, az: 6 + 1.5 * u, el: 7, d: 13.5, sx: 10, sy: -24, head: 0}),
-  rua: (u) => ({tx: -3.5, ty: 1.2, tz: 5.5, az: 62 + 1.2 * u, el: 20, d: 30, sx: 10, sy: -20, head: 0}),
+  hero: (u) => ({tx: -1.1, ty: 2.95, tz: 0.4, az: 38 + 1.5 * u, el: 11, d: 14, sx: 10, sy: -18, head: 0}),
+  lateral: (u) => ({tx: -1.2, ty: 2.95, tz: 0.2, az: 8 + 1.2 * u, el: 5, d: 13, sx: 10, sy: -18, head: 0}),
+  rua: (u) => ({tx: -1.4, ty: 2.0, tz: 2.6, az: 58 + 1.0 * u, el: 15, d: 17, sx: 10, sy: -22, head: 0}),
+  calcada: (u) => ({tx: 2.6, ty: 2.1, tz: 1.6, az: 20 + 1.0 * u, el: 8, d: 13, sx: 10, sy: -22, head: 0}),
   cabeca: (u) => ({tx: 0, ty: -0.3, tz: 0.05, az: 215 + 4 * u, el: 9, d: 3.4, sx: 10, sy: -24, head: 1}),
   ptz: (u) => ({tx: 0.05, ty: -0.35, tz: 0.3, az: 28 + 3 * u, el: 4, d: 3.0, sx: 10, sy: -24, head: 1}),
-  lpr: (u) => ({tx: -5.5, ty: 1.8, tz: 4.2, az: 76 + 1.0 * u, el: 18, d: 22, sx: 10, sy: -20, head: 0}),
-  planta: (u) => ({tx: -1.5, ty: 0, tz: 3.4, az: 2 * u, el: 84, d: 25, sx: 10, sy: -16, head: 0}),
+  lpr: (u) => ({tx: -3.6, ty: 2.2, tz: 2.8, az: 80 + 0.8 * u, el: 15, d: 14.5, sx: 10, sy: -22, head: 0}),
+  planta: (u) => ({tx: -1.0, ty: 0, tz: 2.2, az: 2 * u, el: 82, d: 19, sx: 10, sy: -16, head: 0}),
 };
 const VIEWS_T = SCRIPT.filter((e) => e.view).map((e) => [e.t, e.view]);
 const blend = (a, b, k) => {
@@ -142,14 +145,16 @@ const NEAR = [
 ];
 const FAR = [
   {name: 'CABEÇA DE CÂMERAS', sub: 'PTZ · 4 BULLETS · 2 LPR', at: 'ptz'},
-  {name: 'MASTRO TELESCÓPICO', sub: '3,25 → 5,45 m', at: 'mast'},
+  {name: 'MASTRO TELESCÓPICO', sub: '3,70 → 5,45 m', at: 'mast'},
   {name: 'PAINÉIS SOLARES', sub: '3 × 600 Wp · DOBRÁVEIS', at: 'panel'},
   {name: 'BANCO DE BATERIAS', sub: '4 × 200 Ah · 9,6 kWh', at: 'battery'},
+  {name: 'PEDESTRE', sub: 'RECONHECIMENTO FACIAL PELA PTZ', at: 'person', person: true},
 ];
 export function makeLabels(st) {
   return (near, o) => {
     if (o < 0.02) return [];
     const pts = (near ? NEAR : FAR)
+      .filter((p) => !p.person || st.rig.ped.g.visible)
       .map((p) => ({p, at: st.project(st.rig.anchors[p.at]())}))
       .filter((x) => x.at && x.at[0] > 330 && x.at[0] < 1290 && x.at[1] > 110 && x.at[1] < 740);
     const L = pts.filter((x) => x.at[0] < 800).sort((a, b) => a.at[1] - b.at[1]);
@@ -192,6 +197,7 @@ export function makeConsoleFrame(ui, st) {
       panRate: s.panRate,
       lprK,
       plateBox: s.plateBox,
+      faceBox: s.faceBox,
       paused: s.paused ?? false,
       speed: s.speed ?? 1,
       speedK: s.speedK ?? 0.47,
@@ -223,7 +229,7 @@ export function makeFilm() {
         const night = easedDisplay('night', t, 0.9);
         const out = st.frame(m, {...cam, az: cam.az * D2R, el: cam.el * D2R}, {explode: easedDisplay('exploded', t, 0.8), cover: easedDisplay('cover', t), night, feeds: {ptz: FEED.ptz, lpr: FEED.lpr, lprK: lprShown(m)}});
         const [vt0, view] = viewAt(t);
-        frame({seq, tau, m, panRate, view, display: disp, night, near: isNear(view), labels: easedDisplay('labels', t, 0.5) * ss(vt0 + 1.0, vt0 + 1.6, t), cursor: cursorAt(t), plateBox: out.plateBox});
+        frame({seq, tau, m, panRate, view, display: disp, night, near: isNear(view), labels: easedDisplay('labels', t, 0.5) * ss(vt0 + 1.0, vt0 + 1.6, t), cursor: cursorAt(t), plateBox: out.plateBox, faceBox: out.faceBox});
         return {};
       },
     };

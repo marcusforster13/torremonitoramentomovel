@@ -12,7 +12,7 @@ const ss = (a, b, t) => smoother((t - a) / (b - a));
 
 // ------------------------------------------------------------ especificações (modelo representativo)
 export const SPEC = {
-  mastLow: 3.25, // altura da cabeça de câmeras recolhida (m)
+  mastLow: 3.7, // altura da cabeça de câmeras recolhida (m)
   mastHigh: 5.45, // estendida
   lane: [5.75, 9.25], // centro das faixas (z)
   curb: 4.0,
@@ -32,19 +32,37 @@ export const BATT_WH = SPEC.battery.n * SPEC.battery.ah * SPEC.battery.v; // 960
 // ------------------------------------------------------------ os carros: placa, faixa, velocidade, quando passam
 // cada carro: entra em x0 no instante t0 da sequência MONITORAR e anda a v m/s ao longo de dir
 export const CARS = [
-  {plate: 'XPT4A23', color: '#c9ced6', lane: 0, dir: 1, v: 40 / 3.6, t0: 0.4, x0: -42},
-  {plate: 'BRA2E19', color: '#2b3f6b', lane: 1, dir: -1, v: 50 / 3.6, t0: 7.6, x0: 44},
+  {plate: 'XPT4A23', model: 'seda', len: 4.36, color: '#c9ced6', lane: 0, dir: 1, v: 40 / 3.6, t0: 0.4, x0: -42},
+  {plate: 'BRA2E19', model: 'suv', len: 4.62, color: '#2b3f6b', lane: 1, dir: -1, v: 50 / 3.6, t0: 12.4, x0: 44},
 ];
+
+// ------------------------------------------------------------ o pedestre: anda pela calçada na direção da torre
+// A PTZ trava nele entre lock e release, dá zoom no rosto e, com pixels suficientes no rosto, consulta o banco de
+// mandados (BNMP). Os dados do alerta são fictícios.
+export const PERSON = {t0: 3.6, x0: 13, z: 3.15, v: 1.3, head: 1.62, lock: 5.4, release: 12.2, faceW: 0.16, frame: 1.1, minFacePx: 90, maxD: 11.5, lookup: 0.8};
+export const WARRANT = {sim: 0.94, ref: 'Nº 0001234-56.2026 (FICTÍCIO)', base: 'BNMP · CNJ'};
+export function personAt(tau) {
+  const s = tau - PERSON.t0;
+  if (s < 0) return null;
+  const x = PERSON.x0 - PERSON.v * s;
+  if (x < -14) return null;
+  return {x, z: PERSON.z, s};
+}
 
 // ------------------------------------------------------------ sequências
 export const SEQ = {
-  deploy: {dur: 12, from: 'TRANSPORTE', to: 'EM OPERAÇÃO'},
-  patrol: {dur: 16, from: 'VIGILÂNCIA', to: 'FIM DO CICLO'},
-  stow: {dur: 10, from: 'EM OPERAÇÃO', to: 'TRANSPORTE'},
+  deploy: {dur: 13, from: 'TRANSPORTE', to: 'EM OPERAÇÃO'},
+  patrol: {dur: 21, from: 'VIGILÂNCIA', to: 'FIM DO CICLO'},
+  stow: {dur: 11, from: 'EM OPERAÇÃO', to: 'TRANSPORTE'},
 };
-// a implantação: painéis abrem, mastro sobe, câmeras ligam; recolher é o inverso, mais rápido
-const deployState = (tau) => ({fold: ss(0.6, 4.2, tau), mast: ss(4.4, 10.2, tau), power: ss(10.3, 11.3, tau)});
-const stowState = (tau) => ({power: 1 - ss(0.2, 0.9, tau), mast: 1 - ss(1.0, 6.0, tau), fold: 1 - ss(6.2, 9.4, tau)});
+// a implantação: o mastro sobe primeiro (a cabeça sai do caminho), depois os painéis abrem um de cada vez, o de cima
+// da pilha primeiro; por fim as câmeras ligam. Recolher é o inverso. folds[0] é o painel que deita direto sobre o do
+// meio, folds[1] o que fica por cima dele.
+const DEPLOY_T = {mast: [0.6, 6.4], top: [6.6, 9.0], low: [9.2, 11.6], power: [11.8, 12.6]};
+const STOW_T = {power: [0.2, 0.9], low: [1.0, 3.4], top: [3.6, 6.0], mast: [6.2, 10.6]};
+const withFold = (o) => ({...o, fold: (o.folds[0] + o.folds[1]) / 2});
+const deployState = (tau) => withFold({mast: ss(...DEPLOY_T.mast, tau), folds: [ss(...DEPLOY_T.low, tau), ss(...DEPLOY_T.top, tau)], power: ss(...DEPLOY_T.power, tau)});
+const stowState = (tau) => withFold({power: 1 - ss(...STOW_T.power, tau), folds: [1 - ss(...STOW_T.low, tau), 1 - ss(...STOW_T.top, tau)], mast: 1 - ss(...STOW_T.mast, tau)});
 
 /** Posição de um carro no instante tau da patrulha; null antes de entrar e depois de sair. */
 export function carAt(c, tau) {
@@ -60,7 +78,7 @@ const H = (mast) => SPEC.mastLow + (SPEC.mastHigh - SPEC.mastLow) * mast;
 /** Geometria da LPR para um carro: distância à placa, pixels na placa, ângulo vertical, borrão de movimento. */
 export function lprGeom(car, cam, k = 0) {
   // a placa que a câmera vê: a dianteira do carro que se aproxima
-  const px = car.x + car.dir * (SPEC.carLen / 2);
+  const px = car.x + car.dir * ((CARS[car.i ?? 0].len ?? SPEC.carLen) / 2 + 0.012);
   const dx = px - cam.x;
   const dz = car.z - cam.z;
   const dy = 0.45 - cam.y;
@@ -88,44 +106,108 @@ export function lprLook(k, c, h) {
   return {...g, car: c.i, inView, readable: inView && g.pixels >= SPEC.lpr.minPx};
 }
 
+// ------------------------------------------------------------ PTZ: alvos e mira
+const ptzPosAt = (h) => ({x: 0, y: h + SPEC.ptz.dy, z: SPEC.ptz.arm});
+/** A mira (pan, tilt, zoom, distância) para um alvo: 'scan', 'c0', 'c1' (carros) ou 'p' (o rosto do pedestre). */
+function aimOf(id, tau, P) {
+  if (id === 'scan') return {pan: 35 + 40 * Math.sin(tau * 0.5), tilt: 14, zoom: 1, d: 20};
+  let x;
+  let z;
+  let y;
+  let frame;
+  if (id === 'p') {
+    const p = personAt(tau) ?? personAt(PERSON.t0);
+    [x, z, y, frame] = [p.x, p.z, PERSON.head, PERSON.frame];
+  } else {
+    const c = CARS[+id[1]];
+    const p = carAt(c, tau) ?? {x: c.x0, z: SPEC.lane[c.lane]};
+    // o zoom que deixa o carro com ~55% da largura do quadro
+    [x, z, y, frame] = [p.x, p.z, 0.7, c.len / 0.55];
+  }
+  const dx = x - P.x;
+  const dz = z - P.z;
+  const g = Math.hypot(dx, dz);
+  const d = Math.hypot(g, P.y - y);
+  const want = 2 * Math.atan(frame / 2 / d);
+  const zoom = clamp(Math.tan((SPEC.ptz.hfovWide / 2) * D2R) / Math.tan(want / 2), 1, SPEC.ptz.zoom);
+  return {pan: Math.atan2(dx, dz) / D2R, tilt: Math.atan2(P.y - y, g) / D2R, zoom, d};
+}
+// quem a PTZ segue: o pedestre na janela dele, senão o carro mais recente em cena, senão a varredura
+const targetRaw = (tau) => {
+  if (personAt(tau) && tau >= PERSON.lock && tau < PERSON.release) return 'p';
+  for (let i = CARS.length - 1; i >= 0; i--) {
+    const c = carAt(CARS[i], tau);
+    if (c && Math.abs(c.x) < 34) return 'c' + i;
+  }
+  return 'scan';
+};
+const TT = [];
+{
+  let since = 0;
+  let prev = 'scan';
+  let cur = targetRaw(0);
+  for (let i = 0; i <= 60 * 30; i++) {
+    const t = i / 60;
+    const id = targetRaw(t);
+    if (id !== cur) {
+      prev = cur;
+      cur = id;
+      since = t;
+    }
+    TT.push({id, since, prev});
+  }
+}
+const ptzTarget = (tau) => TT[Math.max(0, Math.min(TT.length - 1, Math.floor(tau * 60)))];
+// o instante do alerta: a PTZ assentada no rosto, a pessoa a até maxD m e o rosto com pixels suficientes, mais o
+// tempo da consulta. Tabelado por altura de cabeça.
+const matchCache = new Map();
+function matchInfo(h) {
+  const key = h.toFixed(3);
+  if (matchCache.has(key)) return matchCache.get(key);
+  let r = null;
+  const P = ptzPosAt(h);
+  for (let tau = PERSON.lock; tau < PERSON.release; tau += 1 / 60) {
+    const {id, since} = ptzTarget(tau);
+    if (id !== 'p' || tau < since + 0.9) continue;
+    const a = aimOf('p', tau, P);
+    const hf = 2 * Math.atan(Math.tan((SPEC.ptz.hfovWide / 2) * D2R) / a.zoom);
+    const px = (PERSON.faceW / (2 * a.d * Math.tan(hf / 2))) * SPEC.lpr.px;
+    if (a.d <= PERSON.maxD && px >= PERSON.minFacePx) {
+      r = tau + PERSON.lookup;
+      break;
+    }
+  }
+  matchCache.set(key, r);
+  return r;
+}
+
 /** O estado completo de uma sequência no instante tau: tudo que move e tudo que os painéis mostram. */
 export function stateAt(seq, tau) {
-  const base = seq === 'deploy' ? deployState(tau) : seq === 'stow' ? stowState(tau) : {fold: 1, mast: 1, power: 1};
+  const base = seq === 'deploy' ? deployState(tau) : seq === 'stow' ? stowState(tau) : {fold: 1, folds: [1, 1], mast: 1, power: 1};
   const h = H(base.mast);
   const out = {seq, tau, ...base, h, cars: [], ptz: {pan: 35, tilt: 18, zoom: 1, track: -1}, lpr: [null, null], reads: []};
   // a patrulha: carros, rastreio da PTZ, leituras das LPRs
   if (seq === 'patrol') {
-    const ptzPos = {x: 0, y: h + SPEC.ptz.dy, z: SPEC.ptz.arm};
+    const ptzPos = ptzPosAt(h);
     CARS.forEach((c, i) => {
       const p = carAt(c, tau);
       out.cars.push(p ? {...p, i} : null);
     });
-    // a PTZ segue o carro mais recente em cena; entre carros, volta para a varredura
-    let track = -1;
-    for (let i = CARS.length - 1; i >= 0; i--) if (out.cars[i] && Math.abs(out.cars[i].x) < 34) {
-      track = i;
-      break;
+    out.person = personAt(tau);
+    // a PTZ: o alvo do momento (tabelado), e a transição suave a partir do alvo anterior
+    const {id, since, prev} = ptzTarget(tau);
+    const cur = aimOf(id, tau, ptzPos);
+    const k = ss(since, since + 0.9, tau);
+    const was = k < 1 ? aimOf(prev, tau, ptzPos) : cur;
+    const lerpA = (u, v) => u + ((((v - u + 540) % 360) - 180) * k);
+    out.ptz = {pan: lerpA(was.pan, cur.pan), tilt: was.tilt + (cur.tilt - was.tilt) * k, zoom: Math.exp(Math.log(was.zoom) + (Math.log(cur.zoom) - Math.log(was.zoom)) * k), track: id[0] === 'c' ? +id[1] : -1, person: id === 'p', d: cur.d, settled: k >= 1};
+    // o rosto: pixels na imagem da PTZ, e a consulta ao banco de mandados
+    if (id === 'p' && out.person) {
+      const hf = 2 * Math.atan(Math.tan((SPEC.ptz.hfovWide / 2) * D2R) / out.ptz.zoom);
+      out.face = {px: (PERSON.faceW / (2 * cur.d * Math.tan(hf / 2))) * SPEC.lpr.px, d: cur.d};
     }
-    const scan = {pan: 35 + 40 * Math.sin(tau * 0.5), tilt: 14, zoom: 1};
-    const aim = (car) => {
-      const dx = car.x - ptzPos.x;
-      const dz = car.z - ptzPos.z;
-      const g = Math.hypot(dx, dz);
-      const pan = Math.atan2(dx, dz) / D2R;
-      const tilt = Math.atan2(ptzPos.y - 0.7, g) / D2R;
-      const d = Math.hypot(g, ptzPos.y - 0.7);
-      // o zoom que deixa o carro com ~55% da largura do quadro
-      const want = 2 * Math.atan(SPEC.carLen / 0.55 / 2 / d) / D2R;
-      const zoom = clamp(Math.tan((SPEC.ptz.hfovWide / 2) * D2R) / Math.tan((want / 2) * D2R), 1, SPEC.ptz.zoom);
-      return {pan, tilt, zoom, d};
-    };
-    if (track >= 0) {
-      const a = aim(out.cars[track]);
-      // entra no rastreio suavemente a partir da varredura
-      const k = ss(0, 0.9, out.cars[track].s);
-      const lerpA = (u, v) => u + ((((v - u + 540) % 360) - 180) * k);
-      out.ptz = {pan: lerpA(scan.pan, a.pan), tilt: scan.tilt + (a.tilt - scan.tilt) * k, zoom: scan.zoom + (a.zoom - scan.zoom) * k, track, d: a.d};
-    } else out.ptz = {...scan, track: -1};
+    const m = matchInfo(h);
+    if (m !== null && tau >= m) out.alert = {t: m, age: tau - m, sim: WARRANT.sim};
     // LPR 0 olha para -x (lê a dianteira de quem vem pela faixa 1), LPR 1 para +x (faixa 2 vindo de +x)
     for (let k = 0; k < 2; k++) {
       let best = null;
@@ -139,9 +221,9 @@ export function stateAt(seq, tau) {
   }
   // energia: a carga vem do que está ligado; o sol, da área aberta dos painéis
   const L = SPEC.load;
-  const moving = seq === 'patrol' && out.ptz.track >= 0 ? 1 : 0;
+  const moving = seq === 'patrol' && (out.ptz.track >= 0 || out.ptz.person) ? 1 : 0;
   out.watts = base.power * (L.core + L.ptz + L.ptzMotor * moving + SPEC.bullet.n * L.bullet + 2 * (L.lpr + L.lprIr * 0.25));
-  out.solar = SPEC.solar.wp * (1 + 2 * base.fold) * 0.62;
+  out.solar = SPEC.solar.wp * (1 + base.folds[0] + base.folds[1]) * 0.62;
   out.autonomy = out.watts > 1 ? (BATT_WH * 0.8) / out.watts : Infinity;
   return out;
 }
@@ -174,27 +256,36 @@ function readInfo(i, h) {
 
 /** Uma linha curta para o painel de estado. */
 export function statusOf(s) {
+  const h = `CABEÇA A ${s.h.toFixed(2).replace('.', ',')} m`;
+  const moving = (f) => f > 0.001 && f < 0.999;
   if (s.seq === 'deploy') {
-    if (s.power > 0.5) return ['Em operação', 'CÂMERAS ONLINE · 4G CONECTADO', 'ok'];
-    if (s.mast > 0.02) return ['Elevando mastro', `CABEÇA A ${s.h.toFixed(2).replace('.', ',')} m`, 'move'];
-    if (s.fold > 0.02 && s.fold < 0.99) return ['Abrindo painéis solares', 'ARTICULAÇÕES LATERAIS', 'move'];
-    return ['Modo transporte', 'MASTRO RECOLHIDO · PAINÉIS FECHADOS', 'off'];
+    if (s.power > 0.5) return ['Em operação', 'CÂMERAS ONLINE · 4G OK', 'ok'];
+    if (moving(s.folds[1])) return ['Abrindo painel 1 de 2', 'O DE CIMA DA PILHA', 'move'];
+    if (moving(s.folds[0])) return ['Abrindo painel 2 de 2', 'O DE BAIXO DA PILHA', 'move'];
+    if (moving(s.mast)) return ['Elevando mastro', h, 'move'];
+    if (s.mast >= 0.99 && s.folds[0] >= 0.99 && s.folds[1] >= 0.99) return ['Ligando câmeras', 'PTZ · BULLETS · LPR', 'move'];
+    if (s.mast >= 0.99) return [s.folds[1] < 0.99 ? 'Abrindo painel 1 de 2' : 'Abrindo painel 2 de 2', 'UM DE CADA VEZ', 'move'];
+    return ['Modo transporte', 'PAINÉIS EMPILHADOS', 'off'];
   }
   if (s.seq === 'stow') {
-    if (s.fold < 0.01) return ['Modo transporte', 'PRONTO PARA REBOQUE', 'off'];
-    if (s.mast < 0.99 && s.mast > 0.01) return ['Recolhendo mastro', `CABEÇA A ${s.h.toFixed(2).replace('.', ',')} m`, 'move'];
-    if (s.mast <= 0.01) return ['Fechando painéis', 'ARTICULAÇÕES LATERAIS', 'move'];
+    if (s.mast <= 0.01) return ['Modo transporte', 'PRONTO PARA REBOQUE', 'off'];
+    if (moving(s.mast)) return ['Recolhendo mastro', h, 'move'];
+    if (moving(s.folds[0])) return ['Fechando painel 1 de 2', 'SOBRE O PAINEL DO MEIO', 'move'];
+    if (moving(s.folds[1])) return ['Fechando painel 2 de 2', 'POR CIMA DO PRIMEIRO', 'move'];
     return ['Desligando câmeras', 'GRAVAÇÃO ENCERRADA', 'move'];
   }
+  if (s.alert && s.alert.age < 6) return ['Alerta: mandado em aberto', `ROSTO ${Math.round(s.alert.sim * 100)}% · CENTRAL AVISADA`, 'alert'];
+  if (s.ptz.person) return ['Reconhecimento facial', `PTZ ${s.ptz.zoom.toFixed(1).replace('.', ',')}× · ${Math.round(s.face?.px ?? 0)} px NO ROSTO`, 'ok'];
   const live = s.lpr.find((l) => l && l.readable);
   if (live) return ['Leitura de placa', `LPR ${s.lpr.indexOf(live) + 1} · ${Math.round(live.pixels)} px NA PLACA`, 'ok'];
   if (s.ptz.track >= 0) return ['Rastreando veículo', `PTZ ${s.ptz.zoom.toFixed(1).replace('.', ',')}× · ${Math.round(s.ptz.d ?? 0)} m`, 'ok'];
-  return ['Vigilância', 'PTZ EM VARREDURA · 4 BULLETS 360°', 'ok'];
+  return ['Vigilância', 'PTZ EM VARREDURA', 'ok'];
 }
 
 /** A fase escrita na barra de operação. */
 export function phaseOf(seq, tau) {
-  if (seq === 'deploy') return tau < 0.6 ? 'NIVELAR SAPATAS' : tau < 4.2 ? 'ABRIR PAINÉIS SOLARES' : tau < 10.2 ? 'ELEVAR MASTRO TELESCÓPICO' : 'LIGAR CÂMERAS';
-  if (seq === 'stow') return tau < 1 ? 'DESLIGAR CÂMERAS' : tau < 6 ? 'RECOLHER MASTRO' : 'FECHAR PAINÉIS';
-  return tau < 7.6 ? 'VEÍCULO 1 · FAIXA 1 →' : 'VEÍCULO 2 · FAIXA 2 ←';
+  const at = (T, order, names) => names[Math.max(0, order.findLastIndex((k) => tau >= T[k][0] - 0.2))];
+  if (seq === 'deploy') return at(DEPLOY_T, ['mast', 'top', 'low', 'power'], ['ELEVAR MASTRO TELESCÓPICO', 'ABRIR PAINEL 1 (O DE CIMA)', 'ABRIR PAINEL 2', 'LIGAR CÂMERAS']);
+  if (seq === 'stow') return at(STOW_T, ['power', 'low', 'top', 'mast'], ['DESLIGAR CÂMERAS', 'FECHAR PAINEL 1 SOBRE O DO MEIO', 'FECHAR PAINEL 2 POR CIMA', 'RECOLHER MASTRO']);
+  return tau < PERSON.lock ? 'VEÍCULO 1 · FAIXA 1 →' : tau < PERSON.release ? 'PEDESTRE · RECONHECIMENTO FACIAL' : 'VEÍCULO 2 · FAIXA 2 ←';
 }

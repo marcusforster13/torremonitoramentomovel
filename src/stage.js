@@ -7,7 +7,7 @@ import {GTAOPass} from 'three/addons/postprocessing/GTAOPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {Pass} from 'three/addons/postprocessing/Pass.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
-import {LPR_HFOV, SPEC} from './kin.js';
+import {LPR_HFOV, PERSON, SPEC} from './kin.js';
 import {buildRig} from './rig.js';
 
 const V3 = THREE.Vector3;
@@ -220,6 +220,15 @@ export async function createXptoStage({canvas}) {
         ptzCam.fov = vfov((2 * Math.atan(Math.tan((SPEC.ptz.hfovWide / 2) * D2R) / st.ptz.zoom)) / D2R, ptzCam.aspect);
         ptzCam.updateProjectionMatrix();
         draw(ptzCam, r);
+        // a moldura do rosto na imagem da PTZ
+        if (st.ptz.person && st.person) {
+          const c0 = v.set(st.person.x, PERSON.head, st.person.z).project(ptzCam);
+          const cx = r.x + (c0.x * 0.5 + 0.5) * r.w;
+          const cy = r.y + (-c0.y * 0.5 + 0.5) * r.h;
+          const c1 = v.set(st.person.x, PERSON.head + 0.13, st.person.z).project(ptzCam);
+          const half = Math.abs(r.y + (-c1.y * 0.5 + 0.5) * r.h - cy);
+          out.faceBox = [cx - half * 0.8, cy - half, half * 1.6, half * 2.1];
+        }
       }
       if (feeds.lpr) {
         const k = feeds.lprK ?? 0;

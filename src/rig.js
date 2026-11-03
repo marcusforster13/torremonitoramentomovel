@@ -4,9 +4,12 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
-import {camBadge, mercosulPlate, trailerPlate} from './brand.js';
-import {CARS, LPR_HFOV, lprCam, lprLook, SPEC} from './kin.js';
+import {camBadge, loadLogo, mercosulPlate, trailerPlate} from './brand.js';
+import {CARS, LPR_HFOV, lprCam, lprLook, PERSON, SPEC} from './kin.js';
+import carSeda from './carro_seda.glb';
+import carSuv from './carro_suv.glb';
 import glb from './reboque.glb';
+import pedestre from './pedestre.glb';
 
 const V3 = THREE.Vector3;
 const D2R = Math.PI / 180;
@@ -33,6 +36,7 @@ async function loadTrailer() {
 /** Monta tudo e devolve {root, head, update, anchors, cams}. */
 export async function buildRig(renderer) {
   const root = new THREE.Group();
+  const logo = await loadLogo();
   // ------------------------------------------------------------ o reboque
   const model = await loadTrailer();
   const trailer = new THREE.Group();
@@ -54,45 +58,127 @@ export async function buildRig(renderer) {
   }
   const mastNode = model.getObjectByName('CanoParte1_Mesh');
   const mast0 = mastNode.position.y;
-  // os painéis: o central fica, os laterais dobram por cima dele girando em torno da aresta comum
+  // os painéis: o do meio é a referência e não se mexe; as laterais giram na aresta comum, uma de cada vez, e deitam
+  // por cima dele com a face para baixo, uma sobre a outra (sanduíche). Tudo no espaço do modelo.
   root.updateMatrixWorld(true);
-  const center = model.getObjectByName('Plane024');
-  // a orientação do painel central no espaço do modelo
-  const qc = model.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(center.getWorldQuaternion(new THREE.Quaternion()));
-  const axes = [new V3(1, 0, 0), new V3(0, 1, 0), new V3(0, 0, 1)].map((a) => a.applyQuaternion(qc));
-  const hingeDir = axes.reduce((a, b) => (Math.abs(b.z) > Math.abs(a.z) ? b : a)).clone().normalize();
-  const sides = ['RodaDireita_Mesh', 'RodaEsquerda_Mesh'].map((n) => {
-    const m = model.getObjectByName(n);
-    model.attach(m);
-    m.updateMatrixWorld(true);
-    // a aresta mais próxima do centro: os vértices de menor |x| relativo ao mastro, no espaço do modelo
-    const inv = model.matrixWorld.clone().invert();
+  const inv = model.matrixWorld.clone().invert();
+  const CELLS = 'Material.100';
+  const vertsOf = (obj, cellsOnly = false) => {
     const pts = [];
-    m.traverse((o) => {
-      if (!o.isMesh) return;
+    obj.traverse((o) => {
+      if (!o.isMesh || (cellsOnly && o.material.name !== CELLS)) return;
       const mm = inv.clone().multiply(o.matrixWorld);
       const pos = o.geometry.attributes.position;
-      for (let i = 0; i < pos.count; i += 3) pts.push(new V3().fromBufferAttribute(pos, i).applyMatrix4(mm));
+      for (let i = 0; i < pos.count; i += 2) pts.push(new V3().fromBufferAttribute(pos, i).applyMatrix4(mm));
     });
-    const side = Math.sign(pts.reduce((s, p) => s + p.x - ORIGIN.x, 0));
-    const inner = pts.map((p) => (p.x - ORIGIN.x) * side);
-    const mn = Math.min(...inner);
-    const edge = pts.filter((p, i) => inner[i] < mn + 0.02);
-    const pivot = edge.reduce((a, p) => a.add(p), new V3()).multiplyScalar(1 / edge.length);
-    // sobe primeiro: o sinal que leva o centro do painel para cima
-    const c = pts.reduce((a, p) => a.add(p), new V3()).multiplyScalar(1 / pts.length);
-    const q = new THREE.Quaternion().setFromAxisAngle(hingeDir, Math.PI / 2);
-    const up = c.clone().sub(pivot).applyQuaternion(q).y > 0 ? 1 : -1;
-    return {m, pivot, p0: m.position.clone(), q0: m.quaternion.clone(), sign: up, reach: n === "RodaDireita_Mesh" ? 0.992 : 0.958};
+    return pts;
+  };
+  const mean = (pts) => pts.reduce((a, p) => a.add(p), new V3()).multiplyScalar(1 / pts.length);
+  const center = model.getObjectByName('Plane024');
+  const cPts = vertsOf(center, true);
+  const cMid = mean(cPts);
+  // a normal do painel do meio: a direção de menor espessura (PCA simples: o eixo local com menor extensão)
+  const qOf = (o) => model.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(o.getWorldQuaternion(new THREE.Quaternion()));
+  const axesOf = (o) => [new V3(1, 0, 0), new V3(0, 1, 0), new V3(0, 0, 1)].map((v) => v.applyQuaternion(qOf(o)).normalize());
+  const extent = (pts, d) => {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const p of pts) {
+      const k = p.dot(d);
+      lo = Math.min(lo, k);
+      hi = Math.max(hi, k);
+    }
+    return [lo, hi];
+  };
+  // a normal da face das células: a média das normais da malha, levada ao espaço do modelo, apontando para cima
+  const faceNormal = (obj) => {
+    const n = new V3();
+    const nm = new THREE.Matrix3();
+    obj.traverse((o) => {
+      if (!o.isMesh || o.material.name !== CELLS) return;
+      nm.getNormalMatrix(inv.clone().multiply(o.matrixWorld));
+      const a = o.geometry.attributes.normal;
+      const v = new V3();
+      for (let i = 0; i < a.count; i++) {
+        v.fromBufferAttribute(a, i).applyMatrix3(nm).normalize();
+        n.add(v.y < 0 ? v.negate() : v);
+      }
+    });
+    return n.normalize();
+  };
+  const N = faceNormal(center);
+  // a dobradiça corre ao longo do reboque (z do modelo), no plano do painel do meio
+  const H = new V3(0, 0, 1).addScaledVector(N, -N.z).normalize();
+  const A = new V3().crossVectors(H, N).normalize();
+  const cTop = extent(cPts, N)[1];
+  // a direção do lado comprido de um conjunto de pontos no plano (H, A): PCA 2D
+  const longAxis = (pts, c) => {
+    let xx = 0;
+    let yy = 0;
+    let xy = 0;
+    for (const p of pts) {
+      const x = p.clone().sub(c).dot(H);
+      const y = p.clone().sub(c).dot(A);
+      xx += x * x;
+      yy += y * y;
+      xy += x * y;
+    }
+    return 0.5 * Math.atan2(2 * xy, xx - yy);
+  };
+  const cLong = longAxis(cPts, cMid);
+  // cada folha da pilha: a espessura do painel com moldura mais uma folga
+  const LAYER = 0.07;
+  const sides = ['RodaEsquerda_Mesh', 'RodaDireita_Mesh'].map((name, idx) => {
+    const m = model.getObjectByName(name);
+    model.attach(m);
+    m.updateMatrixWorld(true);
+    const pts = vertsOf(m, true);
+    const mid = mean(pts);
+    const dir = Math.sign(mid.clone().sub(cMid).dot(A));
+    // 1) o giro de livro: na aresta interna, um pouco acima do topo do painel do meio
+    const inner = extent(pts, A.clone().multiplyScalar(dir))[0];
+    const pivot = mean(pts.filter((p) => p.dot(A) * dir < inner + 0.03));
+    pivot.addScaledVector(N, cTop + 0.03 + idx * LAYER - pivot.dot(N));
+    const n0 = faceNormal(m);
+    const proj = (v) => v.clone().addScaledVector(H, -v.dot(H)).normalize();
+    const a0 = proj(n0);
+    const a1 = proj(N.clone().negate());
+    let ang = Math.atan2(new V3().crossVectors(a0, a1).dot(H), a0.dot(a1));
+    const up = mid.clone().sub(pivot).applyAxisAngle(H, ang / 2).add(pivot).dot(N) > mid.dot(N);
+    if (!up) ang -= Math.sign(ang) * Math.PI * 2;
+    const Rb = new THREE.Quaternion().setFromAxisAngle(H, ang);
+    // 2) o ajuste fino, feito junto com o giro: deixa a face exatamente paralela, o lado comprido alinhado e o centro
+    // exatamente sobre o centro do painel do meio, uma camada acima (a segunda folha, duas)
+    const landC = mid.clone().sub(pivot).applyQuaternion(Rb).add(pivot);
+    const Qn = new THREE.Quaternion().setFromUnitVectors(n0.clone().applyQuaternion(Rb), N.clone().negate());
+    const land = pts.map((p) => p.clone().sub(pivot).applyQuaternion(Rb).add(pivot).sub(landC).applyQuaternion(Qn).add(landC));
+    let d = cLong - longAxis(land, landC);
+    d = Math.atan2(Math.sin(2 * d), Math.cos(2 * d)) / 2;
+    // longAxis mede o ângulo de H para A, que gira em torno de -N
+    const Qy = new THREE.Quaternion().setFromAxisAngle(N.clone().negate(), d);
+    const Qc = Qy.multiply(Qn);
+    const target = cMid.clone().addScaledVector(N, (idx + 1) * LAYER);
+    const shift = target.sub(landC);
+    return {m, pivot, ang, Qc, shift, mid, p0: m.position.clone(), q0: m.quaternion.clone()};
   });
   const tq = new THREE.Quaternion();
-  const foldPanels = (fold) => {
-    for (const s of sides) {
-      const ang = (1 - fold) * Math.PI * s.reach * s.sign;
-      tq.setFromAxisAngle(hingeDir, ang);
+  const cq = new THREE.Quaternion();
+  const I = new THREE.Quaternion();
+  const c = new V3();
+  // fold[i] = 1 aberto, 0 fechado
+  const foldPanels = (folds) => {
+    sides.forEach((s, i) => {
+      const u = 1 - folds[i];
+      const k = u * u * (3 - 2 * u);
+      tq.setFromAxisAngle(H, s.ang * u);
+      // a pose do giro de livro, e o centro da placa nela
       s.m.position.copy(s.p0).sub(s.pivot).applyQuaternion(tq).add(s.pivot);
-      s.m.quaternion.copy(tq).multiply(s.q0);
-    }
+      c.copy(s.mid).sub(s.pivot).applyQuaternion(tq).add(s.pivot);
+      // o ajuste em torno do centro da placa, crescendo junto com o giro
+      cq.slerpQuaternions(I, s.Qc, k);
+      s.m.position.sub(c).applyQuaternion(cq).add(c).addScaledVector(s.shift, k);
+      s.m.quaternion.copy(cq).multiply(tq).multiply(s.q0);
+    });
   };
 
   // a placa XPTO nos dois lados da caixa do reboque
@@ -100,7 +186,7 @@ export async function buildRig(renderer) {
     const body = model.getObjectByName('Cube051');
     root.updateMatrixWorld(true);
     const wb = new THREE.Box3().setFromObject(body);
-    const tex = new THREE.CanvasTexture(trailerPlate());
+    const tex = new THREE.CanvasTexture(trailerPlate(logo));
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
     const mat = new THREE.MeshStandardMaterial({map: tex, roughness: 0.4, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -2});
@@ -121,7 +207,7 @@ export async function buildRig(renderer) {
   const grey = MAT.grey();
   const glass = MAT.glass();
   const steel = MAT.steel();
-  const badgeTex = new THREE.CanvasTexture(camBadge());
+  const badgeTex = new THREE.CanvasTexture(camBadge(logo));
   badgeTex.colorSpace = THREE.SRGBColorSpace;
   const badgeMat = new THREE.MeshStandardMaterial({map: badgeTex, roughness: 0.5});
   const mesh = (geo, mat, f) => {
@@ -253,60 +339,81 @@ export async function buildRig(renderer) {
   });
   head.add(mesh(new THREE.BoxGeometry(0.4, 0.04, 0.05), steel, (m) => (m.position.y = SPEC.lpr.dy + 0.17)));
 
-  // ------------------------------------------------------------ os carros
-  const plates = [];
-  const cars = CARS.map((c) => {
+  // ------------------------------------------------------------ os carros: sedã e SUV do pacote CC-BY de Comrade1280
+  // (os mesmos do projeto Lei Seca), frente em +x, rodas soltas para girar; a placa Mercosul na frente e atrás
+  const carSrc = {seda: carSeda, suv: carSuv};
+  const cars = [];
+  for (const c of CARS) {
+    const bin = Uint8Array.from(atob(carSrc[c.model]), (ch) => ch.charCodeAt(0));
+    const gl = (await new GLTFLoader().parseAsync(bin.buffer, '')).scene;
     const g = new THREE.Group();
-    const paint = new THREE.MeshPhysicalMaterial({color: c.color, roughness: 0.32, metalness: 0.55, clearcoat: 0.6, envMapIntensity: 0.7});
-    const side = new THREE.Shape();
-    const P = [[-2.2, 0.28], [2.1, 0.28], [2.24, 0.42], [2.22, 0.7], [1.95, 0.84], [0.95, 0.94], [-1.75, 0.98], [-2.18, 0.9], [-2.24, 0.55]];
-    side.moveTo(...P[0]);
-    for (const p of P.slice(1)) side.lineTo(...p);
-    const body = new THREE.ExtrudeGeometry(side, {depth: 1.62, bevelEnabled: true, bevelSize: 0.06, bevelThickness: 0.06, bevelSegments: 3});
-    body.translate(0, 0, -0.81);
-    g.add(mesh(body, paint));
-    const cab = new THREE.Shape();
-    const Q = [[1.02, 0.92], [0.18, 1.4], [-1.0, 1.42], [-1.72, 0.97]];
-    cab.moveTo(...Q[0]);
-    for (const p of Q.slice(1)) cab.lineTo(...p);
-    const cabin = new THREE.ExtrudeGeometry(cab, {depth: 1.42, bevelEnabled: true, bevelSize: 0.04, bevelThickness: 0.04, bevelSegments: 2});
-    cabin.translate(0, 0, -0.71);
-    g.add(mesh(cabin, glass));
-    g.add(mesh(new THREE.BoxGeometry(1.0, 0.04, 1.36), paint, (m) => m.position.set(-0.38, 1.42, 0)));
-    const tire = new THREE.CylinderGeometry(0.32, 0.32, 0.22, 24);
-    tire.rotateX(Math.PI / 2);
+    g.add(gl);
     const wheels = [];
-    for (const x of [1.38, -1.32])
-      for (const z of [0.78, -0.78]) {
-        const w = new THREE.Group();
-        w.position.set(x, 0.32, z);
-        w.add(mesh(tire, black));
-        w.add(mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.23, 8).rotateX(Math.PI / 2), steel));
-        g.add(w);
-        wheels.push(w);
+    gl.traverse((o) => {
+      if (o.name.startsWith('Roda_')) wheels.push(o);
+      if (!o.isMesh) return;
+      o.castShadow = true;
+      o.receiveShadow = true;
+      const m = o.material;
+      if (/^Body/.test(m.name)) {
+        o.material = m.clone();
+        o.material.map = null;
+        o.material.color.set(c.color);
+        o.material.roughness = 0.35;
+        o.material.metalness = 0.5;
       }
-    const lamp = new THREE.MeshStandardMaterial({color: '#fff6dc', emissive: '#fff1c8', emissiveIntensity: 0.5});
-    const tail = new THREE.MeshStandardMaterial({color: '#a3151b', emissive: '#d81d22', emissiveIntensity: 0.4});
-    for (const z of [0.58, -0.58]) {
-      g.add(mesh(new THREE.BoxGeometry(0.06, 0.1, 0.32), lamp, (m) => m.position.set(2.22, 0.66, z)));
-      g.add(mesh(new THREE.BoxGeometry(0.06, 0.1, 0.3), tail, (m) => m.position.set(-2.23, 0.78, z)));
-    }
+      o.material.envMapIntensity = 0.8;
+    });
+    const box = new THREE.Box3().setFromObject(gl);
     const tex = new THREE.CanvasTexture(mercosulPlate(c.plate));
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
-    const pm = new THREE.MeshStandardMaterial({map: tex, roughness: 0.35});
-    for (const s of [1, -1]) {
-      const pl = mesh(new THREE.PlaneGeometry(SPEC.plateW, SPEC.plateH), pm, (m) => {
-        m.position.set(s * 2.3, 0.45, 0);
-        m.rotation.y = (s * Math.PI) / 2;
-      });
-      g.add(pl);
-      plates.push(pl);
+    const pm = new THREE.MeshStandardMaterial({map: tex, roughness: 0.35, polygonOffset: true, polygonOffsetFactor: -2});
+    for (const sgn of [1, -1]) {
+      g.add(mesh(new THREE.PlaneGeometry(SPEC.plateW, SPEC.plateH), pm, (m) => {
+        m.position.set(sgn > 0 ? box.max.x + 0.012 : box.min.x - 0.012, 0.45, 0);
+        m.rotation.y = (sgn * Math.PI) / 2;
+      }));
     }
     g.visible = false;
     root.add(g);
-    return {g, wheels};
-  });
+    cars.push({g, wheels});
+  }
+
+  // ------------------------------------------------------------ o pedestre (Microsoft Rocketbox, MIT, via projeto Lei Seca)
+  const ped = {};
+  {
+    const bin = Uint8Array.from(atob(pedestre), (ch) => ch.charCodeAt(0));
+    const gltf = await new GLTFLoader().parseAsync(bin.buffer, '');
+    const g = new THREE.Group();
+    g.add(gltf.scene);
+    gltf.scene.traverse((o) => {
+      if (!o.isMesh) return;
+      o.castShadow = true;
+      o.receiveShadow = true;
+      o.frustumCulled = false;
+      o.material.envMapIntensity = 0.7;
+    });
+    const mixer = new THREE.AnimationMixer(gltf.scene);
+    const clip = gltf.animations.find((c) => c.name === 'andando') ?? gltf.animations[0];
+    // só a rotação dos ossos: o andar fica no lugar e o deslocamento vem de kin.js
+    clip.tracks = clip.tracks.filter((t) => !/\.position$/.test(t.name) || !/hips|pelvis|root/i.test(t.name));
+    mixer.clipAction(clip).play();
+    // o anel de alerta no chão e o marcador acima da cabeça
+    const ringMat = new THREE.MeshBasicMaterial({color: '#e5484d', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -6});
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.52, 48), ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.02;
+    ring.renderOrder = 5;
+    g.add(ring);
+    const pin = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.2, 4), new THREE.MeshBasicMaterial({color: '#e5484d', transparent: true, opacity: 0}));
+    pin.rotation.x = Math.PI;
+    pin.position.y = 2.15;
+    g.add(pin);
+    g.visible = false;
+    root.add(g);
+    Object.assign(ped, {g, mixer, clip, ring, ringMat, pin});
+  }
 
   // ------------------------------------------------------------ coberturas: leques das Bullets, zonas de leitura das LPRs
   const coverMat = (col, a) => new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: a, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6});
@@ -371,7 +478,7 @@ export async function buildRig(renderer) {
     const cov = opt.cover ?? 0;
     mastNode.position.y = mast0 - (1 - s.mast) * MAST_TRAVEL;
     head.position.set(0, s.h, 0);
-    foldPanels(s.fold);
+    foldPanels(s.folds);
     // explodida: cada câmera se afasta ao longo do próprio eixo
     for (const b of parts.bullets) b.cam.position.x = 0.3 + explode * 0.45;
     parts.box.position.z = -0.17 - explode * 0.4;
@@ -391,6 +498,20 @@ export async function buildRig(renderer) {
       const roll = (p.s * CARS[i].v) / 0.32;
       for (const w of c.wheels) w.rotation.z = -roll;
     });
+    // o pedestre: anda para -x; o passo acompanha a velocidade (ciclo do clipe a 1,3 m/s)
+    const pp = s.person;
+    ped.g.visible = !!pp;
+    if (pp) {
+      ped.g.position.set(pp.x, 0, pp.z);
+      ped.g.rotation.y = -Math.PI / 2;
+      ped.mixer.setTime(pp.s % ped.clip.duration);
+      const al = s.alert ? Math.min(1, s.alert.age / 0.3) : 0;
+      const pulse = 0.6 + 0.4 * Math.sin((s.alert?.age ?? 0) * 7);
+      ped.ringMat.opacity = al * pulse * 0.85;
+      ped.ring.scale.setScalar(1 + 0.15 * pulse);
+      ped.pin.material.opacity = al;
+      ped.pin.position.y = 2.15 + 0.05 * Math.sin((s.alert?.age ?? 0) * 4);
+    }
     // coberturas
     cover.visible = cov > 0.01 && s.power > 0.5;
     for (const m of fanMats) m.opacity = 0.1 * cov;
@@ -437,6 +558,7 @@ export async function buildRig(renderer) {
     mast: () => new V3(0, head.position.y - 1.4, 0),
     panel: () => center.getWorldPosition(new V3()),
     battery: () => new V3(-1.9, 0.9, 0.2),
+    person: () => ped.g.localToWorld(new V3(0, 1.95, 0)),
   };
-  return {root, head, parts, update, anchors, cars, zones, ptzWorld, model, trailer, sides};
+  return {root, head, parts, update, anchors, cars, zones, ptzWorld, model, trailer, sides, ped};
 }

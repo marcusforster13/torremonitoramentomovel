@@ -322,7 +322,7 @@ export async function runLive() {
     const out = st.frame(m, {...cam, az: cam.az * D2R, el: cam.el * D2R}, {explode: eased('exploded', 0.8), cover: eased('cover'), night, feeds});
     const lastBox = out.plateBox;
     const display = Object.fromEntries(DISPLAY.map((x) => [x, disp[x].on]));
-    frameConsole({seq, tau, m, panRate, view, display, night, near: isNear(view), labels: eased('labels', 0.5) * ss(1.0, 1.6, since), cursor, plateBox: lastBox, paused: AP.on ? false : paused, speed: AP.on ? 1 : speed, speedK: speedK(AP.on ? 1 : speed)});
+    frameConsole({seq, tau, m, panRate, view, display, night, near: isNear(view), labels: eased('labels', 0.5) * ss(1.0, 1.6, since), cursor, plateBox: lastBox, faceBox: out.faceBox, paused: AP.on ? false : paused, speed: AP.on ? 1 : speed, speedK: speedK(AP.on ? 1 : speed)});
     if (tourChip.classList.contains('on') !== AP.on || !tourChip.firstChild) {
       tourChip.classList.toggle('on', AP.on);
       tourChip.innerHTML = AP.on ? '<i></i>PASSEIO AUTOMÁTICO · CLIQUE PARA ASSUMIR' : '▶ RETOMAR PASSEIO';

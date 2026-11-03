@@ -7,14 +7,14 @@ const n = b.readUInt32LE(12);
 const j = JSON.parse(b.slice(20, 20 + n));
 const binStart = 20 + n + 8;
 const bin = b.slice(binStart, binStart + b.readUInt32LE(20 + n));
-const SIZE = {0: 8, 1: 512, 2: 512, 3: 512, 4: 8};
+const SIZE = process.argv[4] ? null : {0: 8, 1: 512, 2: 512, 3: 512, 4: 8};
 const tmp = 'tools/tmp';
 fs.mkdirSync(tmp, {recursive: true});
 const imgData = j.images.map((im, i) => {
   const bv = j.bufferViews[im.bufferView];
   const f = `${tmp}/i${i}.${im.mimeType.endsWith('png') ? 'png' : 'jpg'}`;
   fs.writeFileSync(f, bin.slice(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength));
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', f, '-vf', `scale=${SIZE[i]}:${SIZE[i]}`, '-q:v', '4', `${tmp}/o${i}.jpg`]);
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', f, '-vf', SIZE ? `scale=${SIZE[i]}:${SIZE[i]}` : `scale='min(${process.argv[4]},iw)':-2`, '-q:v', '4', `${tmp}/o${i}.jpg`]);
   im.mimeType = 'image/jpeg';
   return fs.readFileSync(`${tmp}/o${i}.jpg`);
 });
