@@ -4,34 +4,36 @@
 import * as THREE from 'three';
 import {runSim} from 'teardown-kit/runtime.js';
 import {createConsole, DISPLAY, FEED} from './console.js';
-import {phaseOf, SEQ, stateAt, statusOf} from './kin.js';
+import {headAt, phaseOf, SEQ, stateAt, statusOf} from './kin.js';
 import {createXptoStage} from './stage.js';
 
+// cada vista fica no ar enquanto algo acontece nela: a implantação, o carro 1 e a leitura da placa, o pedestre e o
+// alerta, o carro 2 à noite, a cabeça explodida e o recolhimento
 export const SCRIPT = [
   {t: 0, seq: 'deploy', view: 'hero'},
-  {t: 1.6, display: 'labels'},
-  {t: 3.4, view: 'lateral'},
-  {t: 6.4, view: 'hero'},
-  {t: 12.0, display: 'labels'},
-  {t: 13.4, seq: 'patrol', view: 'rua'},
-  {t: 14.2, display: 'cover'},
-  {t: 15.2, view: 'lpr'},
-  {t: 18.2, view: 'ptz'},
-  {t: 18.6, display: 'labels'},
-  {t: 20.0, display: 'labels'},
-  {t: 20.2, view: 'calcada'},
-  {t: 24.0, view: 'cabeca'},
-  {t: 24.6, display: 'exploded'},
-  {t: 26.8, display: 'exploded'},
-  {t: 27.2, view: 'planta'},
-  {t: 27.6, display: 'night'},
-  {t: 30.6, display: 'night'},
-  {t: 31.0, display: 'cover'},
-  {t: 31.4, view: 'hero'},
-  {t: 31.8, display: 'orbit'},
-  {t: 34.4, seq: 'stow'},
+  {t: 1.8, display: 'labels'},
+  {t: 5.0, view: 'lateral'},
+  {t: 9.0, view: 'hero'},
+  {t: 13.0, display: 'labels'},
+  {t: 14.0, seq: 'patrol', view: 'rua'},
+  {t: 15.0, display: 'cover'},
+  {t: 16.0, view: 'lpr'},
+  {t: 21.6, view: 'ptz'},
+  {t: 22.0, display: 'labels'},
+  {t: 24.4, display: 'labels'},
+  {t: 24.8, view: 'calcada'},
+  {t: 32.2, view: 'lpr2'},
+  {t: 32.6, display: 'night'},
+  {t: 38.4, display: 'night'},
+  {t: 39.0, view: 'cabeca'},
+  {t: 39.8, display: 'exploded'},
+  {t: 43.4, display: 'exploded'},
+  {t: 44.2, display: 'cover'},
+  {t: 44.4, view: 'hero'},
+  {t: 44.8, display: 'orbit'},
+  {t: 46.0, seq: 'stow'},
 ];
-export const DURATION = 46;
+export const DURATION = 58.5;
 export const DEFAULTS = {duration: DURATION, fps: 60, theme: 'light', hud: {enabled: false, title: 'xpto', subtitle: ''}, director: {enabled: false}, watermark: ''};
 const D2R = Math.PI / 180;
 const smoother = (x) => {
@@ -66,29 +68,42 @@ export const mechAt = (seq, tau) => {
 
 // ------------------------------------------------------------ vistas: {tx, ty, tz, az, el, d (graus, m), sx, sy, head}
 export const VIEW_FN = {
-  hero: (u) => ({tx: -1.1, ty: 2.95, tz: 0.4, az: 38 + 1.5 * u, el: 11, d: 14, sx: 10, sy: -18, head: 0}),
-  lateral: (u) => ({tx: -1.2, ty: 2.95, tz: 0.2, az: 8 + 1.2 * u, el: 5, d: 13, sx: 10, sy: -18, head: 0}),
-  rua: (u) => ({tx: -1.4, ty: 2.0, tz: 2.6, az: 58 + 1.0 * u, el: 15, d: 17, sx: 10, sy: -22, head: 0}),
-  calcada: (u) => ({tx: 2.6, ty: 2.1, tz: 1.6, az: 20 + 1.0 * u, el: 8, d: 13, sx: 10, sy: -22, head: 0}),
-  cabeca: (u) => ({tx: 0, ty: -0.3, tz: 0.05, az: 215 + 4 * u, el: 9, d: 3.4, sx: 10, sy: -24, head: 1}),
-  ptz: (u) => ({tx: 0.05, ty: -0.35, tz: 0.3, az: 28 + 3 * u, el: 4, d: 3.0, sx: 10, sy: -24, head: 1}),
-  lpr: (u) => ({tx: -3.6, ty: 2.2, tz: 2.8, az: 80 + 0.8 * u, el: 15, d: 14.5, sx: 10, sy: -22, head: 0}),
-  planta: (u) => ({tx: -1.0, ty: 0, tz: 2.2, az: 2 * u, el: 82, d: 19, sx: 10, sy: -16, head: 0}),
+  hero: (u) => ({tx: -1.1, ty: 2.95, tz: 0.4, az: 38 + 1.0 * u, el: 11, d: 14, sx: 10, sy: -18, head: 0}),
+  lateral: (u) => ({tx: -1.2, ty: 2.95, tz: 0.2, az: 8 + 0.8 * u, el: 5, d: 13, sx: 10, sy: -18, head: 0}),
+  rua: (u) => ({tx: -1.6, ty: 2.2, tz: 2.2, az: 52 + 0.8 * u, el: 13, d: 15, sx: 10, sy: -20, head: 0}),
+  calcada: (u) => ({tx: 2.6, ty: 2.1, tz: 1.6, az: 20 + 0.8 * u, el: 8, d: 13, sx: 10, sy: -22, head: 0}),
+  cabeca: (u) => ({tx: 0, ty: -0.3, tz: 0.05, az: 215 + 3 * u, el: 9, d: 3.4, sx: 10, sy: -24, head: 1}),
+  ptz: (u) => ({tx: 0.05, ty: -0.35, tz: 0.3, az: 28 + 2 * u, el: 4, d: 3.0, sx: 10, sy: -24, head: 1}),
+  // atrás e acima da torre, olhando a faixa por onde o carro chega: a torre, a zona de leitura e o carro no mesmo quadro
+  lpr: (u) => ({tx: -6, ty: 1.2, tz: 4.6, az: 124 - 0.6 * u, el: 19, d: 16, sx: 10, sy: -20, head: 0}),
+  lpr2: (u) => ({tx: 5.0, ty: 1.4, tz: 6.0, az: 236 - 0.6 * u, el: 30, d: 18, sx: 10, sy: -20, head: 0}),
+  planta: (u) => ({tx: -1.0, ty: 0, tz: 2.6, az: 2 * u, el: 80, d: 20, sx: 10, sy: -16, head: 0}),
 };
+/** Uma vista com o alvo em coordenadas do mundo: as vistas da cabeça somam a altura da cabeça em ty. */
+export const absView = (c, h) => ({...c, ty: c.ty + (c.head ?? 0) * h, head: 0});
 const VIEWS_T = SCRIPT.filter((e) => e.view).map((e) => [e.t, e.view]);
+// no meio de uma troca de vista o olhar curva na direção da torre, para a câmera nunca atravessar rua vazia
+const TOWER = {tx: -0.9, ty: 3.0, tz: 0.3};
 const blend = (a, b, k) => {
   const o = {};
   for (const key in b) o[key] = key === 'az' ? a.az + ((((b.az - a.az + 540) % 360) - 180) * k) : a[key] + (b[key] - a[key]) * k;
+  const pull = Math.sin(Math.PI * k) * 0.75;
+  for (const key of ['tx', 'ty', 'tz']) o[key] += (TOWER[key] - o[key]) * pull;
+  // e afasta um pouco, para a torre caber inteira enquanto gira
+  o.d = Math.exp(Math.log(a.d) + (Math.log(b.d) - Math.log(a.d)) * k) + Math.sin(Math.PI * k) * 3;
   return o;
 };
+export const BLEND = 2.4;
 export const camAt = (t, orbit = 0) => {
   let i = 0;
   while (i < VIEWS_T.length - 1 && VIEWS_T[i + 1][0] <= t) i++;
-  const cur = VIEW_FN[VIEWS_T[i][1]](t - VIEWS_T[i][0]);
+  const {seq, tau} = seqAt(t);
+  const h = headAt(seq, tau);
+  const cur = absView(VIEW_FN[VIEWS_T[i][1]](t - VIEWS_T[i][0]), h);
   let o = cur;
   if (i > 0) {
-    const k = ss(VIEWS_T[i][0], VIEWS_T[i][0] + 1.6, t);
-    if (k < 1) o = blend(VIEW_FN[VIEWS_T[i - 1][1]](t - VIEWS_T[i - 1][0]), cur, k);
+    const k = ss(VIEWS_T[i][0], VIEWS_T[i][0] + BLEND, t);
+    if (k < 1) o = blend(absView(VIEW_FN[VIEWS_T[i - 1][1]](t - VIEWS_T[i - 1][0]), h), cur, k);
   }
   if (orbit > 0) o = {...o, az: o.az + 9 * Math.max(0, t - lastFlip('orbit', t)) * orbit};
   return o;
@@ -210,6 +225,7 @@ export function makeConsoleFrame(ui, st) {
 // a LPR mostrada na imagem ao vivo: a que tem um carro no campo, senão a da última leitura
 export const lprShown = (m) => (m.lpr[1] && m.lpr[1].inView ? 1 : m.lpr[0] ? 0 : m.reads.length ? m.reads[m.reads.length - 1].lpr : 0);
 export const isNear = (view) => view === 'cabeca' || view === 'ptz';
+export const VIEW_ORDER = ['hero', 'lateral', 'rua', 'calcada', 'cabeca', 'ptz', 'lpr', 'lpr2', 'planta'];
 
 export function makeFilm() {
   return async ({canvas, capture}) => {
@@ -229,7 +245,7 @@ export function makeFilm() {
         const night = easedDisplay('night', t, 0.9);
         const out = st.frame(m, {...cam, az: cam.az * D2R, el: cam.el * D2R}, {explode: easedDisplay('exploded', t, 0.8), cover: easedDisplay('cover', t), night, feeds: {ptz: FEED.ptz, lpr: FEED.lpr, lprK: lprShown(m)}});
         const [vt0, view] = viewAt(t);
-        frame({seq, tau, m, panRate, view, display: disp, night, near: isNear(view), labels: easedDisplay('labels', t, 0.5) * ss(vt0 + 1.0, vt0 + 1.6, t), cursor: cursorAt(t), plateBox: out.plateBox, faceBox: out.faceBox});
+        frame({seq, tau, m, panRate, view, display: disp, night, near: isNear(view), labels: easedDisplay('labels', t, 0.6) * ss(vt0 + BLEND, vt0 + BLEND + 0.6, t), cursor: cursorAt(t), plateBox: out.plateBox, faceBox: out.faceBox});
         return {};
       },
     };

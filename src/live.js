@@ -4,7 +4,7 @@
 // com o ponteiro do operador; um clique, arraste, roda ou tecla devolve o controle, 25 s sem mexer retoma o passeio.
 import {warmComposer} from 'teardown-kit/warm.js';
 import {createConsole, DISPLAY, FEED, SEQS, VIEWS} from './console.js';
-import {camAt, displayAt, DURATION, isNear, lprShown, makeConsoleFrame, makeCursor, mechAt, seqAt, ss, viewAt, VIEW_FN} from './film.js';
+import {absView, BLEND, camAt, displayAt, DURATION, isNear, lprShown, makeConsoleFrame, makeCursor, mechAt, seqAt, ss, viewAt, VIEW_FN} from './film.js';
 import {SEQ} from './kin.js';
 import {createXptoStage} from './stage.js';
 
@@ -100,7 +100,7 @@ export async function runLive() {
   let viewAt0 = 0;
   const disp = Object.fromEntries(DISPLAY.map((k) => [k, {on: 0, t: -9}]));
   const off = {az: 0, el: 0, k: 1};
-  const cam = {...VIEW_FN.hero(0)};
+  const cam = absView(VIEW_FN.hero(0), 0);
   let ring = {t: -9, x: 0, y: 0};
   const eased = (k, dur = 0.7) => {
     const d = disp[k];
@@ -306,7 +306,7 @@ export async function runLive() {
       if (T - lastInput > IDLE) startTour();
       if (!paused) tau = Math.min(SEQ[seq].dur, tau + dt * speed);
       since = T - viewAt0;
-      tgt = VIEW_FN[view](since);
+      tgt = absView(VIEW_FN[view](since), mechAt(seq, tau).m.h);
       tgt.az += off.az + (disp.orbit.on ? 9 * (T - disp.orbit.t) : 0);
       tgt.el = clamp(tgt.el + off.el, -20, 88);
       tgt.d *= off.k;
@@ -314,7 +314,7 @@ export async function runLive() {
       cursor = {x: -99, y: -99, press: false, ring: rk, ringX: ring.x, ringY: ring.y};
     }
     const {m, panRate} = mechAt(seq, tau);
-    const k = 1 - Math.exp(-dt / (AP.on ? 0.18 : 0.45));
+    const k = 1 - Math.exp(-dt / (AP.on ? 0.25 : 0.5));
     cam.az += wrap(tgt.az - cam.az) * k;
     for (const key of ['tx', 'ty', 'tz', 'el', 'd', 'sx', 'sy', 'head']) cam[key] += (tgt[key] - cam[key]) * k;
     const night = eased('night', 0.9);
@@ -322,7 +322,7 @@ export async function runLive() {
     const out = st.frame(m, {...cam, az: cam.az * D2R, el: cam.el * D2R}, {explode: eased('exploded', 0.8), cover: eased('cover'), night, feeds});
     const lastBox = out.plateBox;
     const display = Object.fromEntries(DISPLAY.map((x) => [x, disp[x].on]));
-    frameConsole({seq, tau, m, panRate, view, display, night, near: isNear(view), labels: eased('labels', 0.5) * ss(1.0, 1.6, since), cursor, plateBox: lastBox, faceBox: out.faceBox, paused: AP.on ? false : paused, speed: AP.on ? 1 : speed, speedK: speedK(AP.on ? 1 : speed)});
+    frameConsole({seq, tau, m, panRate, view, display, night, near: isNear(view), labels: eased('labels', 0.6) * ss(BLEND * 0.5, BLEND * 0.5 + 0.6, since), cursor, plateBox: lastBox, faceBox: out.faceBox, paused: AP.on ? false : paused, speed: AP.on ? 1 : speed, speedK: speedK(AP.on ? 1 : speed)});
     if (tourChip.classList.contains('on') !== AP.on || !tourChip.firstChild) {
       tourChip.classList.toggle('on', AP.on);
       tourChip.innerHTML = AP.on ? '<i></i>PASSEIO AUTOMÁTICO · CLIQUE PARA ASSUMIR' : '▶ RETOMAR PASSEIO';

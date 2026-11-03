@@ -7,8 +7,8 @@ import {BATT_WH, CARS, LPR_HFOV, SPEC, WARRANT} from './kin.js';
 export const C = {ink: BRAND.navy, mute: '#7d8696', faint: '#cdd4de', line: '#dfe5ec', panel: 'rgba(250,252,254,.95)', ac: BRAND.cyan, acInk: BRAND.cyanInk, ok: '#1fa971', warn: '#e8792b', rec: '#e5484d'};
 export const SEQS = ['deploy', 'patrol', 'stow'];
 export const SEQ_LABEL = {deploy: 'IMPLANTAR', patrol: 'MONITORAR', stow: 'RECOLHER'};
-export const VIEWS = ['hero', 'lateral', 'rua', 'calcada', 'cabeca', 'ptz', 'lpr', 'planta'];
-export const VIEW_LABEL = {hero: 'GERAL', lateral: 'LATERAL', rua: 'RUA', calcada: 'CALÇADA', cabeca: 'CABEÇA', ptz: 'PTZ', lpr: 'LPR', planta: 'PLANTA'};
+export const VIEWS = ['hero', 'lateral', 'rua', 'calcada', 'cabeca', 'ptz', 'lpr', 'lpr2', 'planta'];
+export const VIEW_LABEL = {hero: 'GERAL', lateral: 'LATERAL', rua: 'RUA', calcada: 'CALÇADA', cabeca: 'CABEÇA', ptz: 'PTZ', lpr: 'LPR 1', lpr2: 'LPR 2', planta: 'PLANTA'};
 export const DISPLAY = ['labels', 'cover', 'exploded', 'night', 'orbit'];
 export const DISPLAY_LABEL = {labels: 'RÓTULOS', cover: 'COBERTURA', exploded: 'EXPLODIDA', night: 'NOITE IR', orbit: 'ÓRBITA'};
 // os retângulos das imagens ao vivo (o palco desenha nelas, o console desenha a moldura e o texto por cima)
@@ -185,7 +185,7 @@ export function createConsole(app) {
   btnRow(VIEWS, VIEW_LABEL, 1327, 582);
   panel(1313, 696, 258, 106, 'EXIBIÇÃO', '07');
   btnRow(DISPLAY, DISPLAY_LABEL, 1327, 732);
-  add(`<div class="sm" style="position:absolute;left:1314px;top:818px;line-height:15px;font-size:8.2px">ARRASTE PARA GIRAR · RODA PARA ZOOM<br>TECLAS 1–8 VISTAS · ESPAÇO PAUSA</div>`);
+  add(`<div class="sm" style="position:absolute;left:1314px;top:818px;line-height:15px;font-size:8.2px">ARRASTE PARA GIRAR · RODA PARA ZOOM<br>TECLAS 1–9 VISTAS · ESPAÇO PAUSA</div>`);
 
   // ------------------------------------------------------------ 08 operação
   panel(430, 752, 740, 108, 'OPERAÇÃO', '08');

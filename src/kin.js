@@ -33,13 +33,13 @@ export const BATT_WH = SPEC.battery.n * SPEC.battery.ah * SPEC.battery.v; // 960
 // cada carro: entra em x0 no instante t0 da sequência MONITORAR e anda a v m/s ao longo de dir
 export const CARS = [
   {plate: 'XPT4A23', model: 'seda', len: 4.36, color: '#c9ced6', lane: 0, dir: 1, v: 40 / 3.6, t0: 0.4, x0: -42},
-  {plate: 'BRA2E19', model: 'suv', len: 4.62, color: '#2b3f6b', lane: 1, dir: -1, v: 50 / 3.6, t0: 12.4, x0: 44},
+  {plate: 'BRA2E19', model: 'suv', len: 4.62, color: '#2b3f6b', lane: 1, dir: -1, v: 50 / 3.6, t0: 18.5, x0: 44},
 ];
 
 // ------------------------------------------------------------ o pedestre: anda pela calçada na direção da torre
 // A PTZ trava nele entre lock e release, dá zoom no rosto e, com pixels suficientes no rosto, consulta o banco de
 // mandados (BNMP). Os dados do alerta são fictícios.
-export const PERSON = {t0: 3.6, x0: 13, z: 3.15, v: 1.3, head: 1.62, lock: 5.4, release: 12.2, faceW: 0.16, frame: 1.1, minFacePx: 90, maxD: 11.5, lookup: 0.8};
+export const PERSON = {t0: 8.0, x0: 13, z: 3.15, v: 1.3, head: 1.62, lock: 9.8, release: 17.4, faceW: 0.16, frame: 1.1, minFacePx: 90, maxD: 11.5, lookup: 0.8};
 export const WARRANT = {sim: 0.94, ref: 'Nº 0001234-56.2026 (FICTÍCIO)', base: 'BNMP · CNJ'};
 export function personAt(tau) {
   const s = tau - PERSON.t0;
@@ -52,7 +52,7 @@ export function personAt(tau) {
 // ------------------------------------------------------------ sequências
 export const SEQ = {
   deploy: {dur: 13, from: 'TRANSPORTE', to: 'EM OPERAÇÃO'},
-  patrol: {dur: 21, from: 'VIGILÂNCIA', to: 'FIM DO CICLO'},
+  patrol: {dur: 30, from: 'VIGILÂNCIA', to: 'FIM DO CICLO'},
   stow: {dur: 11, from: 'EM OPERAÇÃO', to: 'TRANSPORTE'},
 };
 // a implantação: o mastro sobe primeiro (a cabeça sai do caminho), depois os painéis abrem um de cada vez, o de cima
@@ -74,6 +74,8 @@ export function carAt(c, tau) {
 }
 
 const H = (mast) => SPEC.mastLow + (SPEC.mastHigh - SPEC.mastLow) * mast;
+/** A altura da cabeça de câmeras numa sequência, sem calcular o resto do estado (para a câmera do filme). */
+export const headAt = (seq, tau) => H((seq === 'deploy' ? deployState(tau) : seq === 'stow' ? stowState(tau) : {mast: 1}).mast);
 
 /** Geometria da LPR para um carro: distância à placa, pixels na placa, ângulo vertical, borrão de movimento. */
 export function lprGeom(car, cam, k = 0) {

@@ -15,7 +15,7 @@ console.log('fps', fps, 'tier', await p.evaluate(() => window.LIVE.tier));
 // assume o controle: MONITORAR, vista PTZ, cobertura
 const click = async (txt) => p.locator('.bt', {hasText: new RegExp('^' + txt + '$')}).first().click();
 await click('MONITORAR');
-await click('LPR');
+await click('LPR 1');
 // espera o pedestre e o alerta
 
 await click('COBERTURA');
