@@ -262,7 +262,8 @@ export function createMobileConsole(app, canvas) {
         if (c.o < 0.02 || !c.at) continue;
         const [ax, ay] = c.at;
         const [lx, ly] = c.label;
-        const right = lx > ax;
+        // a coluna da direita liga pela borda esquerda da pílula; a da esquerda, pela direita
+        const right = lx > labelArea.mid;
         const ex = right ? lx : lx + 134;
         lh += `<polyline points="${ax.toFixed(1)},${ay.toFixed(1)} ${ex.toFixed(1)},${(ly + 8).toFixed(1)}" fill="none" stroke="${C.acInk}" stroke-width=".9" opacity="${c.o.toFixed(2)}"/><circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="2.2" fill="${C.acInk}" opacity="${c.o.toFixed(2)}"/>`;
         ch += `<div class="mx-call" style="${right ? 'left' : 'left'}:${lx.toFixed(1)}px;top:${ly.toFixed(1)}px;opacity:${c.o.toFixed(2)};max-width:134px;overflow:hidden;text-overflow:ellipsis"><i></i>${c.name}</div>`;

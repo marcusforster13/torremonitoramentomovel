@@ -70,7 +70,9 @@ export async function runLive() {
     {samples: 2, ao: false, shadow: 1024, pr: 1},
   ];
   const light = matchMedia('(pointer: coarse)').matches || Math.min(innerWidth, innerHeight) < 700;
-  let tier = light ? 2 : 0;
+  // ?rec: gravação quadro a quadro (tools/phonerec.mjs), sempre na qualidade máxima
+  const rec = new URLSearchParams(location.search).has('rec');
+  let tier = rec ? 0 : light ? 2 : 0;
   let scale = 1;
   // no celular: a cena tem a largura da tela; a faixa das imagens ao vivo embaixo dela empurra a torre para cima, e
   // em tela vertical a câmera recua um pouco para a torre caber
@@ -309,7 +311,7 @@ export async function runLive() {
     const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
     last = now;
     T += dt;
-    if (tier < TIERS.length - 1) {
+    if (!rec && tier < TIERS.length - 1) {
       perf.age += dt;
       if (perf.age > 0.6) {
         perf.sum += dt;
