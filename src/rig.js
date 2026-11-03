@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {camBadge, loadLogo, mercosulPlate, trailerPlate} from './brand.js';
 import {CARS, LPR_HFOV, lprCam, lprLook, PERSON, SPEC} from './kin.js';
 import carSeda from './carro_seda.glb';
@@ -306,20 +307,25 @@ export async function buildRig(renderer) {
   }
 
   // a placa XPTO nos dois lados da caixa do reboque, colada na lataria como adesivo, 2 mm à frente da chapa (só o
-  // bastante para a textura não piscar). Tamanho da placa da foto do equipamento (0,56 x 0,22 m). Os pontos foram
-  // achados com um mapa de relevo das laterais a cada 2 cm (probe3): o retângulo inteiro sobre chapa lisa, longe das
-  // maçanetas e das dobras das portas.
+  // bastante para a textura não piscar). No lado de trás ela fica exatamente sobre a placa reservada para o logo no
+  // modelo (Plane023, 0,53 x 0,21 m, que fica escondida); no lado da rua, na posição espelhada.
   {
     const tex = new THREE.CanvasTexture(trailerPlate(logo));
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
     const mat = new THREE.MeshStandardMaterial({map: tex, roughness: 0.4, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1});
+    const slot = model.getObjectByName('Plane023');
+    const sb = new THREE.Box3().setFromObject(slot);
+    slot.visible = false;
+    const sc = sb.getCenter(new V3());
+    const PW = sb.max.x - sb.min.x;
+    const PH = sb.max.y - sb.min.y;
     const SPOTS = [
-      {x: -1.44, y: 1.13, z: 0.6447, s: 1},
-      {x: -1.36, y: 1.13, z: -0.6446, s: -1},
+      {x: sc.x, y: sc.y, z: 0.6447, s: 1},
+      {x: sc.x, y: sc.y, z: sb.max.z, s: -1},
     ];
     for (const p of SPOTS) {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.22), mat);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(PW, PH), mat);
       m.position.set(p.x, p.y, p.z + p.s * 0.002);
       m.rotation.y = p.s > 0 ? 0 : Math.PI;
       m.receiveShadow = true;
@@ -714,5 +720,49 @@ export async function buildRig(renderer) {
     battery: () => new V3(-1.9, 0.9, 0.2),
     person: () => ped.g.localToWorld(new V3(0, 1.95, 0)),
   };
+  // otimização sem perda: as ~200 peças paradas do reboque viram uma malha por material (a geometria é a mesma, só
+  // desenhada de uma vez). Ficam de fora as que se movem (mastro, painéis laterais) e as escondidas.
+  {
+    root.updateMatrixWorld(true);
+    const inv = model.matrixWorld.clone().invert();
+    const moving = new Set([mastNode, ...sides.map((x) => x.m)]);
+    const groups = new Map();
+    const victims = [];
+    model.traverse((o) => {
+      if (!o.isMesh || o.isSkinnedMesh) return;
+      for (let q = o; q && q !== model; q = q.parent) if (moving.has(q) || !q.visible) return;
+      if (o.material.clippingPlanes || Array.isArray(o.material)) return;
+      const g = o.geometry;
+      const key = [o.material.uuid, Object.keys(g.attributes).sort().join(','), g.index ? 'i' : 'n', o.castShadow, o.receiveShadow].join('|');
+      const m = inv.clone().multiply(o.matrixWorld);
+      const ng = g.clone().applyMatrix4(m);
+      // espelhamento na transformação inverte a ordem dos vértices: desvira para a face continuar para fora
+      if (m.determinant() < 0) {
+        if (ng.index) {
+          const a = ng.index.array;
+          for (let i = 0; i < a.length; i += 3) [a[i + 1], a[i + 2]] = [a[i + 2], a[i + 1]];
+        } else {
+          for (const attr of Object.values(ng.attributes)) {
+            const sz = attr.itemSize;
+            const a = attr.array;
+            for (let i = 0; i < attr.count; i += 3)
+              for (let k = 0; k < sz; k++) [a[(i + 1) * sz + k], a[(i + 2) * sz + k]] = [a[(i + 2) * sz + k], a[(i + 1) * sz + k]];
+          }
+        }
+      }
+      if (!groups.has(key)) groups.set(key, {mat: o.material, cast: o.castShadow, recv: o.receiveShadow, geos: []});
+      groups.get(key).geos.push(ng);
+      victims.push(o);
+    });
+    for (const o of victims) o.parent.remove(o);
+    for (const {mat, cast, recv, geos} of groups.values()) {
+      const merged = mergeGeometries(geos, false);
+      if (!merged) continue;
+      const m = new THREE.Mesh(merged, mat);
+      m.castShadow = cast;
+      m.receiveShadow = recv;
+      model.add(m);
+    }
+  }
   return {root, head, parts, update, anchors, cars, zones, ptzWorld, model, trailer, sides, ped};
 }
