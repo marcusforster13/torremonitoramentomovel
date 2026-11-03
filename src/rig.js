@@ -56,8 +56,72 @@ export async function buildRig(renderer) {
     if (m.roughness !== undefined) m.roughness = Math.max(m.roughness, 0.42);
     m.envMapIntensity = 0.6;
   }
+  // o mastro, como um telescópico de verdade: o tubo azul de baixo é fixo e tem no topo uma luva fixa (a faixa azul e
+  // o anel cinza, separados do tubo móvel); o tubo cinza fino sai de dentro da luva ao subir e entra nela ao recolher.
+  // Do tubo móvel só aparece o que está acima da luva.
   const mastNode = model.getObjectByName('CanoParte1_Mesh');
-  const mast0 = mastNode.position.y;
+  root.updateMatrixWorld(true);
+  const blueBox = new THREE.Box3().setFromObject(model.getObjectByName('Cylinder019'));
+  const blueTop = blueBox.max.y;
+  const axis = blueBox.getCenter(new V3());
+  const grayLow = new THREE.Box3().setFromObject(mastNode).min.y;
+  const mast0 = mastNode.position.y + (blueTop - grayLow) + 0.002;
+  // as medidas da luva no modelo original: faixa azul de 20 cm (r 5,5 cm), 5 cm de folga, anel de 5 cm (r 12,4 cm)
+  const band = mastNode.getObjectByName('Cylinder071');
+  const ringMesh = mastNode.getObjectByName('Cylinder071_1');
+  const BAND_H = 0.2;
+  const GAP = 0.05;
+  const RING_H = 0.05;
+  const collarTop = blueTop + BAND_H + GAP + RING_H;
+  {
+    const collar = new THREE.Group();
+    const bandMat = band.material.clone();
+    const ringMat = ringMesh.material.clone();
+    const c1 = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, BAND_H, 32), bandMat);
+    c1.position.set(axis.x, blueTop + BAND_H / 2, axis.z);
+    const c2 = new THREE.Mesh(new THREE.CylinderGeometry(0.047, 0.047, GAP, 24), ringMat);
+    c2.position.set(axis.x, blueTop + BAND_H + GAP / 2, axis.z);
+    const c3 = new THREE.Mesh(new THREE.CylinderGeometry(0.124, 0.124, RING_H, 40), ringMat);
+    c3.position.set(axis.x, blueTop + BAND_H + GAP + RING_H / 2, axis.z);
+    for (const c of [c1, c2, c3]) {
+      c.castShadow = true;
+      c.receiveShadow = true;
+      collar.add(c);
+    }
+    root.add(collar);
+    // tira do tubo móvel a faixa azul e os triângulos do anel (os vértices com raio maior que 8 cm)
+    band.visible = false;
+    const g = ringMesh.geometry.clone();
+    const pos = g.attributes.position;
+    const w = new V3();
+    const far = [];
+    for (let i = 0; i < pos.count; i++) {
+      w.fromBufferAttribute(pos, i).applyMatrix4(ringMesh.matrixWorld);
+      far.push(Math.hypot(w.x - axis.x, w.z - axis.z) > 0.08);
+    }
+    const idx = g.index ? Array.from(g.index.array) : [...Array(pos.count).keys()];
+    const keep = [];
+    for (let i = 0; i < idx.length; i += 3) if (!far[idx[i]] && !far[idx[i + 1]] && !far[idx[i + 2]]) keep.push(idx[i], idx[i + 1], idx[i + 2]);
+    g.setIndex(keep);
+    ringMesh.geometry = g;
+  }
+  // o trecho do tubo fino onde ficavam a faixa e o anel (com o mastro em cima, de 3,85 a 4,40 m): um tubo que sobe e
+  // desce junto com o mastro, para o cinza ficar contínuo
+  const fill = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.6, 24), ringMesh.material);
+  const fillY = new THREE.Box3().setFromObject(band).getCenter(new V3()).y + 0.1;
+  fill.position.set(axis.x, fillY, axis.z);
+  fill.castShadow = true;
+  root.add(fill);
+  const mastClip = [new THREE.Plane(new V3(0, 1, 0), -collarTop)];
+  for (const o of [...(() => {
+    const l = [];
+    mastNode.traverse((m) => m.isMesh && l.push(m));
+    return l;
+  })(), fill]) {
+    o.material = o.material.clone();
+    o.material.clippingPlanes = mastClip;
+    o.material.clipShadows = true;
+  }
   // os painéis: o do meio é a referência e não se mexe; as laterais giram na aresta comum, uma de cada vez, e deitam
   // por cima dele com a face para baixo, uma sobre a outra (sanduíche). Tudo no espaço do modelo.
   root.updateMatrixWorld(true);
@@ -482,6 +546,7 @@ export async function buildRig(renderer) {
     const explode = opt.explode ?? 0;
     const cov = opt.cover ?? 0;
     mastNode.position.y = mast0 - (1 - s.mast) * MAST_TRAVEL;
+    fill.position.y = fillY - (1 - s.mast) * MAST_TRAVEL;
     head.position.set(0, s.h, 0);
     foldPanels(s.folds);
     // explodida: cada câmera se afasta ao longo do próprio eixo

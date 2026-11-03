@@ -12,8 +12,8 @@ const ss = (a, b, t) => smoother((t - a) / (b - a));
 
 // ------------------------------------------------------------ especificações (modelo representativo)
 export const SPEC = {
-  mastLow: 3.7, // altura da cabeça de câmeras recolhida (m)
-  mastHigh: 5.45, // estendida
+  mastLow: 4.25, // altura da cabeça de câmeras recolhida (m)
+  mastHigh: 5.65, // estendida (o conjunto cinza assenta no topo do tubo azul)
   lane: [5.75, 9.25], // centro das faixas (z)
   curb: 4.0,
   plateW: 0.4, // placa Mercosul 400 x 130 mm
@@ -33,7 +33,7 @@ export const BATT_WH = SPEC.battery.n * SPEC.battery.ah * SPEC.battery.v; // 960
 // cada carro: entra em x0 no instante t0 da sequência MONITORAR e anda a v m/s ao longo de dir
 export const CARS = [
   {plate: 'XPT4A23', model: 'seda', len: 4.36, color: '#c9ced6', lane: 0, dir: 1, v: 40 / 3.6, t0: 0.4, x0: -42},
-  {plate: 'BRA2E19', model: 'suv', len: 4.62, color: '#2b3f6b', lane: 1, dir: -1, v: 50 / 3.6, t0: 18.5, x0: 44},
+  {plate: 'BRA2E19', model: 'suv', len: 4.62, color: '#2b3f6b', lane: 1, dir: -1, v: 50 / 3.6, t0: 21.0, x0: 44},
 ];
 
 // ------------------------------------------------------------ o pedestre: anda pela calçada na direção da torre
@@ -52,7 +52,7 @@ export function personAt(tau) {
 // ------------------------------------------------------------ sequências
 export const SEQ = {
   deploy: {dur: 13, from: 'TRANSPORTE', to: 'EM OPERAÇÃO'},
-  patrol: {dur: 30, from: 'VIGILÂNCIA', to: 'FIM DO CICLO'},
+  patrol: {dur: 33, from: 'VIGILÂNCIA', to: 'FIM DO CICLO'},
   stow: {dur: 11, from: 'EM OPERAÇÃO', to: 'TRANSPORTE'},
 };
 // a implantação: o mastro sobe primeiro (a cabeça sai do caminho), depois os painéis abrem um de cada vez, o de cima

@@ -18,22 +18,26 @@ export const SCRIPT = [
   {t: 14.0, seq: 'patrol', view: 'rua'},
   {t: 15.0, display: 'cover'},
   {t: 16.0, view: 'lpr'},
+  // a cabeça de perto com o nome de cada câmera: fica no ar ~5 s depois que a câmera chega
   {t: 21.6, view: 'ptz'},
   {t: 22.0, display: 'labels'},
-  {t: 24.4, display: 'labels'},
-  {t: 24.8, view: 'calcada'},
-  {t: 32.2, view: 'lpr2'},
-  {t: 32.6, display: 'night'},
-  {t: 38.4, display: 'night'},
-  {t: 39.0, view: 'cabeca'},
-  {t: 39.8, display: 'exploded'},
+  {t: 29.2, display: 'labels'},
+  {t: 29.6, view: 'calcada'},
+  {t: 35.8, view: 'lpr2'},
+  {t: 36.2, display: 'night'},
+  {t: 42.0, display: 'night'},
+  // a cabeça explodida, também com os nomes
+  {t: 42.4, view: 'cabeca'},
+  {t: 43.0, display: 'labels'},
   {t: 43.4, display: 'exploded'},
-  {t: 44.2, display: 'cover'},
-  {t: 44.4, view: 'hero'},
-  {t: 44.8, display: 'orbit'},
-  {t: 46.0, seq: 'stow'},
+  {t: 49.8, display: 'exploded'},
+  {t: 50.4, display: 'labels'},
+  {t: 50.6, display: 'cover'},
+  {t: 50.8, view: 'hero'},
+  {t: 51.2, display: 'orbit'},
+  {t: 52.0, seq: 'stow'},
 ];
-export const DURATION = 58.5;
+export const DURATION = 64;
 export const DEFAULTS = {duration: DURATION, fps: 60, theme: 'light', hud: {enabled: false, title: 'xpto', subtitle: ''}, director: {enabled: false}, watermark: ''};
 const D2R = Math.PI / 180;
 const smoother = (x) => {
@@ -160,7 +164,7 @@ const NEAR = [
 ];
 const FAR = [
   {name: 'CABEÇA DE CÂMERAS', sub: 'PTZ · 4 BULLETS · 2 LPR', at: 'ptz'},
-  {name: 'MASTRO TELESCÓPICO', sub: '3,70 → 5,45 m', at: 'mast'},
+  {name: 'MASTRO TELESCÓPICO', sub: '4,25 → 5,65 m', at: 'mast'},
   {name: 'PAINÉIS SOLARES', sub: '3 × 600 Wp · DOBRÁVEIS', at: 'panel'},
   {name: 'BANCO DE BATERIAS', sub: '4 × 200 Ah · 9,6 kWh', at: 'battery'},
   {name: 'PEDESTRE', sub: 'RECONHECIMENTO FACIAL PELA PTZ', at: 'person', person: true},
